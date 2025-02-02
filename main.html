@@ -1,0 +1,436 @@
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
+    <link rel="stylesheet" as="style" onload="this.rel='stylesheet'" href="https://fonts.googleapis.com/css2?display=swap&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900&amp;family=Space+Grotesk%3Awght%40400%3B500%3B700" />
+
+    <title>Copilot Visualizer</title>
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+      button {
+        width: 100px !important;
+        height: 48px !important;
+        border-radius: 24px !important;
+        background-color: #f1316b !important;
+        color: #fff !important;
+        margin-top: 45px !important;
+        border:none !important;
+        font-size: 12px !important;
+      }
+      .axis path,
+      .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+      }
+      .label {
+        font-size: 12px;
+      }
+      .bool-background {
+        opacity: 0.3;
+      }
+      .hexagon {
+        stroke: black;
+        stroke-width: 1px;
+        color: green;
+      }
+      .value-text {
+        font-size: 10px;
+        text-anchor: middle;
+        dominant-baseline: middle;
+      }
+      .time-label {
+        font-family: sans-serif;
+        font-size: 12px;
+        fill: black;
+      }
+      .grid-line {
+        stroke: #ccc;
+        stroke-width: 1;
+        stroke-dasharray: 3,3;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="timeline-parent" style="display: inline-block;" >
+    <svg id="timeline"></svg>
+    </div>
+    <div>
+      <button id="copyPNG">Copy as PNG</button>
+      <button id="copySVG">Copy as SVG</button>
+      <button id="downloadPNG">Save as PNG</button>
+      <button id="downloadSVG">Save as SVG</button>
+      <button id="stepUp">+1 step</button>
+      <button id="stepDown">-1 step</button>
+      <button id="addStream">Add Stream</button>
+    </div>
+    <div id="popup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-80 text-center">
+            <h3 class="text-lg font-semibold mb-4">Enter new stream details</h3>
+            <input type="text" id="inputName" placeholder="Name" class="w-full p-2 border rounded-md mb-2">
+            <input type="text" id="inputExpr" placeholder="Expression" class="w-full p-2 border rounded-md mb-4">
+            <div class="flex justify-between">
+                <button id="submitPopup" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
+                    Add
+                </button>
+                <button id="closePopup" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+      const margin    = {top: 20, right: 20, bottom: 30, left: 100};
+      const width     = 960 - margin.left - margin.right;
+      const height    = 200 - margin.top - margin.bottom;
+      const rowHeight = 40;
+
+      let numRows  = 0;
+      let numSteps = 2;
+      let data = { adLastSample: 0, adTraceElems: [] };
+      let svg;
+      let xScale;
+
+      // Process numeric data to include duration and y-positions
+      function processNumericData(data)
+      {
+        const maxValue = Math.max(...data.map(d => d.value));
+        const minValue = Math.min(...data.map(d => d.value));
+        const yScale = d3.scaleLinear()
+                         .domain([minValue, maxValue])
+                         .range([rowHeight * 0.8, rowHeight * 0.2]);
+
+        return data.map((d, i) => ({
+          ...d,
+          duration: i < data.length - 1 ? data[i + 1].time - d.time : numSteps + 1 - d.time,
+          y: yScale(d.value)
+        }));
+      }
+
+      function createLabels()
+      {
+        document.querySelectorAll(".label").forEach(function(lst) {
+          lst.remove();
+        });
+
+        // Add row labels
+        const labels = data.adTraceElems.map((x) => x.teName);
+        svg.selectAll(".label")
+           .data(labels)
+           .enter()
+           .append("text")
+           .attr("class", "label")
+           .attr("x", -90)
+           .attr("y", (d, i) => i * rowHeight + rowHeight/2)
+           .text(d => d);
+      }
+
+      // Function to create hexagon path
+      function hexagonPath(width, height)
+      {
+        return `
+          M ${width-10},0
+          L ${width},${height/2}
+          L ${width-10},${height}
+          L ${10},${height}
+          L ${0},${height/2}
+          L ${10},0
+          Z
+        `;
+      }
+
+      // Draw numeric row with stretched hexagons
+      function drawNumericRow(data, rowIndex)
+      {
+        const rowG = svg.append("g")
+                        .attr("class", "value_list")
+                        .attr("transform", `translate(0,${rowIndex * rowHeight})`);
+
+        const hexHeight = rowHeight * 0.8;
+
+        // Create hexagon groups
+        const hexGroups = rowG.selectAll("g")
+                              .data(data)
+                              .enter()
+                              .append("g")
+                              .attr("transform", d => `translate(${xScale(d.time)},${rowHeight * 0.1})`);
+
+        // Add hexagons
+        hexGroups.append("path")
+                 .attr("class", "hexagon")
+                 .attr("d", d => hexagonPath(xScale(d.duration) - xScale(0), hexHeight))
+                 .attr("fill", "#f7fbff");
+
+        // Add value text
+        hexGroups.append("text")
+                 .attr("class", "value-text")
+                 .attr("x", d => (xScale(d.duration) - xScale(0)) / 2)
+                 .attr("y", hexHeight / 2)
+                 .text(d => d.value);
+      }
+
+      // Draw boolean rows with colored backgrounds
+      function drawBooleanRow(data, rowIndex)
+      {
+        const rowG = svg.append("g")
+                        .attr("class", "value_list")
+                        .attr("transform", `translate(0,${rowIndex * rowHeight})`);
+
+        // Draw colored backgrounds
+        rowG.selectAll("rect")
+            .data(data)
+            .enter()
+            .append("rect")
+            .attr("class", "bool-background")
+            .attr("x", d => xScale(d.time))
+            .attr("y", 0)
+            .attr("width", d => xScale(d.duration) - xScale(0))
+            .attr("height", rowHeight)
+            .attr("fill", d => d.value == "true" ? "#90EE90" : "#FFB6C1");
+      }
+
+      function redraw()
+      {
+        document.querySelectorAll(".value_list").forEach(function(lst) {
+          lst.remove();
+        });
+
+        // Draw all rows
+        i = 0;
+        data.adTraceElems.forEach(function(traceElem) {
+          if (traceElem.teIsBoolean)
+          {
+            drawBooleanRow(traceElem.teValues, i);
+          }
+          else
+          {
+            drawNumericRow(processNumericData(traceElem.teValues), i);
+          }
+          i++;
+        });
+      }
+
+      function createSVG()
+      {
+        // Clear all existing elements
+        if (typeof svg !== 'undefined' ) { svg.selectAll("*").remove(); }
+
+        numRows  = data.adTraceElems.length;
+        numSteps = data.adLastSample;
+
+        // Create SVG
+        svg = d3.select("#timeline")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", (rowHeight * numRows) + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // Create scales
+        xScale = d3.scaleLinear()
+                   .domain([0, numSteps + 1])
+                   .range([0, width]);
+
+        // Create x-axis with ticks at integer positions
+        const xAxis = d3.axisBottom(xScale)
+                        .tickValues(Array.from({length: 11}, (_, i) => i))
+                        .tickFormat('');
+
+        createLabels();
+        redraw();
+
+        // Add the axis
+        const axisGroup = svg.append("g")
+                             .attr("class", "axis")
+                             .attr("transform", `translate(0,${rowHeight * numRows})`)
+                             .call(xAxis);
+
+        // After creating the axis and labels, add vertical grid lines
+        const gridLines = axisGroup.selectAll(".grid-line")
+                                   .data(Array.from({length: 11}, (_, i) => i))
+                                   .enter()
+                                   .append("line")
+                                   .attr("class", "grid-line")
+                                   .attr("x1", d => xScale(d))
+                                   .attr("x2", d => xScale(d))
+                                   .attr("y1", -rowHeight * (numRows + 1))  // Start from top (negative because we're going up from axis)
+                                   .attr("y2", 0)              // End at axis
+                                   .style("stroke", "#ccc")    // Light gray color
+                                   .style("stroke-width", "1")
+                                   .style("stroke-dasharray", "3,3");  // Creates dotted line
+
+        // Add offset labels
+        const timeLabels = axisGroup.selectAll(".time-label")
+                                    .data(Array.from({length: numRows + 1}, (_, i) => i))
+                                    .enter()
+                                    .append("text")
+                                    .attr("class", "time-label")
+                                    .attr("x", d => xScale(d + 0.5))
+                                    .attr("y", 25)
+                                    .attr("text-anchor", "middle")
+                                    .text(d => d + "");
+
+        // Detect clicks on timeline.
+        svg.on("click", function(event) {
+          const mouseX = d3.pointer(event)[0];
+          const time   = Math.floor(xScale.invert(mouseX).toFixed(2));
+          const row    = Math.floor((event.offsetY - margin.top) / rowHeight);
+          const label  = data.adTraceElems[row].teName;
+
+          console.log("Label:", label , "Time:", time);
+          ws.send('(Up ' + time + ', "' + label + '")');
+        });
+
+        // Detect mouse wheel on timeline.
+        svg.on("wheel", function(event) {
+          // Prevent default scroll behavior
+          event.preventDefault();
+
+          const mouseX = d3.pointer(event)[0];
+          const time   = Math.floor(xScale.invert(mouseX).toFixed(2));
+          const row    = Math.floor((event.offsetY - margin.top) / rowHeight);
+          const label  = data.adTraceElems[row].teName;
+          const dir    = event.deltaY < 0 ? 'Up' : 'Down';
+
+          ws.send('(' + dir + ' ' + time + ', "' + label + '")');
+
+          console.log ( "Label:", label, "Time:", time, "Direction:", dir);
+        });
+
+      }
+
+      // Copy timeline as png
+      function copyPNG()
+      {
+        // Somehow this does not work if I match the svg element directly.
+        const mySVG = document.querySelector("#timeline-parent");
+        html2canvas(mySVG).then(function(canvas) {
+          canvas.toBlob(function(blob) {
+            navigator.clipboard
+              .write([
+                new ClipboardItem(
+                  Object.defineProperty({}, blob.type, {
+                    value: blob,
+                    enumerable: true
+                  })
+                )
+              ]).then(function() {
+                console.log("Copied to clipboard");
+              });
+          });
+        });
+      }
+      document.getElementById("copyPNG").addEventListener("click", copyPNG);
+
+      function copySVG()
+      {
+        const mySVG = document.querySelector("#timeline");
+        const data  = new XMLSerializer().serializeToString(mySVG);
+
+        navigator.clipboard.writeText(data).then(
+          () => {
+            console.log("SVG copied to clipboard");
+          },
+          (err) => {
+            console.log("Failed to copy SVG to clipboard");
+          }
+        );
+      }
+      document.getElementById("copySVG").addEventListener("click", copySVG);
+
+      function downloadPNG()
+      {
+        // Somehow this does not work if I match the svg element directly.
+        const mySVG = document.querySelector("#timeline-parent");
+        html2canvas(mySVG).then(function(canvas) {
+          var a = document.createElement('a');
+          a.href = canvas.toDataURL();
+          a.download = "timeline.png";
+          a.click();
+        });
+      }
+
+      document.getElementById("downloadPNG").addEventListener("click", downloadPNG);
+
+      function downloadSVG()
+      {
+        const mySVG = document.querySelector("#timeline");
+        const data  = new XMLSerializer().serializeToString(mySVG);
+        download("timeline.svg", data);
+      }
+
+      document.getElementById("downloadSVG").addEventListener("click", downloadSVG);
+
+      function download(filename, text)
+      {
+        var element = document.createElement('a');
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+        element.setAttribute('download', filename);
+
+        element.style.display = 'none';
+        document.body.appendChild(element);
+
+        element.click();
+
+        document.body.removeChild(element);
+      }
+
+      createSVG();
+
+      // Communicate with the backend instance of Copilot via a websocket
+      let ws = new WebSocket('ws://localhost:9160');
+
+      ws.onmessage = function(event) {
+        data = JSON.parse(event.data);
+        createSVG();
+      };
+
+      ws.onclose = function() {
+        console.log('Disconnected from server');
+      };
+
+      ws.onerror = function(error) {
+        console.log('Error: ' + error.message);
+      };
+
+      function stepUp()
+      {
+        ws.send('StepUp');
+      }
+
+      function stepDown()
+      {
+        ws.send('StepDown');
+      }
+
+      function addStream()
+      {
+        popup.classList.remove("hidden");
+        // ws.send('(AddStream "x1" "constF 3.0", "")');
+      }
+
+      document.getElementById("stepUp").addEventListener("click", stepUp);
+      document.getElementById("stepDown").addEventListener("click", stepDown);
+      document.getElementById("addStream").addEventListener("click", addStream);
+
+      const popup       = document.getElementById("popup");
+      const closePopup  = document.getElementById("closePopup");
+      const submitPopup = document.getElementById("submitPopup");
+
+      closePopup.addEventListener("click", () => {
+        popup.classList.add("hidden");
+      });
+
+      submitPopup.addEventListener("click", () => {
+        const inputName = document.getElementById("inputName").value;
+        const inputExpr = document.getElementById("inputExpr").value;
+        ws.send('(AddStream "' + inputName + '" "(' + inputExpr + ')", "")');
+        popup.classList.add("hidden");
+      });
+    </script>
+  </body>
+</html>
+
