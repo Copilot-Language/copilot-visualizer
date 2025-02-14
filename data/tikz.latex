@@ -27,9 +27,6 @@ timing/d/text/.style={font=\sffamily\tiny},
 <%#adTraceElems%>
 <%teName%> & g<%#teValues%><%#tvIsEmpty%>S<%/tvIsEmpty%><%^tvIsEmpty%><%#tvIsBoolean%>[fill=<%tvValue%>]<%/tvIsBoolean%>D{<%tvValue%>}<%/tvIsEmpty%><%/teValues%>\\
 <%/adTraceElems%>
-
-    printObserverOutputs
-    printTriggerOutputs
 \extracode
 \begin{background}[shift={(0.05,0)},help lines]
 \vertlines[help lines,opacity=0.3]{-0.3ex,...,<%adLastSample%>}
