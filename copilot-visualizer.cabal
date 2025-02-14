@@ -40,8 +40,10 @@ library
     -Wall
 
   build-depends:
-    base       >= 4.9 && < 5,
-    pretty     >= 1.0 && < 1.2,
+    base       >= 4.9   && < 5,
+    aeson,
+    pretty     >= 1.0   && < 1.2,
+    ogma-extra >= 1.6.0 && < 1.7,
 
     copilot-core        >= 4.2 && < 4.3,
     copilot-interpreter >= 4.2 && < 4.3

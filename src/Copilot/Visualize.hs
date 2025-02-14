@@ -1,17 +1,137 @@
 -- | Graphical visualization of Copilot specifications.
 
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Copilot.Visualize
-    ( paint )
   where
 
-import Data.Maybe (isNothing, isJust)
+import Data.Aeson
+import Data.Maybe (isNothing, isJust, fromMaybe)
 import Data.List
 import Copilot.Core
 import Copilot.Interpret.Eval
+import GHC.Generics
 import Text.Printf
 import Text.Read
+
+data TraceElem = TraceElem
+  { teName      :: String
+  , teIsBoolean :: Bool
+  , teIsFloat   :: Bool
+  , teValues    :: [ String ]
+  }
+  deriving (Generic, Show)
+
+instance ToJSON TraceElem
+
+type Trace = [ TraceElem ]
+
+makeTrace :: Int     -- ^ Number of steps to interpret.
+          -> Spec    -- ^ Specification to interpret.
+          -> IO ()
+makeTrace k spec =
+    print $ toJSON $ makeTraceEval k spec e
+  where
+    e = eval Haskell k spec
+
+makeTraceEval :: Int
+              -> Spec
+              -> ExecTrace
+              -> Trace
+makeTraceEval k spec e =
+    observerTEs ++ triggerTEs
+  where
+    observerTEs = map observerTE obsvs
+
+    triggerTEs  = concatMap triggerTE trigs
+
+    observerTE :: (String, [Output]) -> TraceElem
+    observerTE (name, outputs) = TraceElem
+        { teName = name
+        , teIsBoolean = boolean
+        , teIsFloat   = float
+        , teValues    = outputs
+        }
+      where
+        boolean = case outputs of
+                    []    -> False
+                    (x:_) -> isBoolean x
+
+        float   = case outputs of
+                    []    -> False
+                    (x:_) -> isFloat x
+
+    triggerTE :: (String, [[String]]) -> [TraceElem]
+    triggerTE (name, ls) =
+        map triggerArgTE (zip ls [0..])
+      where
+        triggerArgTE (values, i) =
+            TraceElem { teName      = name ++ " # " ++ show i
+                      , teIsBoolean = boolean
+                      , teIsFloat   = float
+                      , teValues    = values
+                      }
+          where
+            boolean = case values of
+                        []    -> False
+                        (x:_) -> isBoolean x
+
+            float   = case values of
+                        []    -> False
+                        (x:_) -> isFloat x
+
+    trigs :: [(String, [[String]])]
+    trigs = map (printOutputs . regroup) trigs'
+      where
+        printOutputs :: (String, [[Maybe Output]]) -> (String, [[String]])
+        printOutputs (nm, ls) = (nm, transpose $ map (map ppTriggerOutput) ls)
+
+        ppTriggerOutput :: Maybe Output -> String
+        ppTriggerOutput Nothing  = "--"
+        ppTriggerOutput (Just v) = v
+
+        regroup :: (String, [Maybe [Output]], Int) -> (String, [[Maybe Output]])
+        regroup (n, ls, len) = (n, map rep ls)
+          where
+            rep :: Maybe [a] -> [Maybe a]
+            rep Nothing  = replicate len Nothing
+            rep (Just x) = map Just x
+
+    trigs' :: [(String, [Maybe [Output]], Int)]
+    trigs' = map addArgsLength (interpTriggers e)
+      where
+        addArgsLength :: (String, [Maybe [Output]]) -> (String, [Maybe [Output]], Int)
+        addArgsLength (name, output) = (name, output, argsLength)
+          where
+            argsLength = case find (\t -> triggerName t == name) (specTriggers spec) of
+              Nothing -> error "Couldn't find given trigger in spec, should never occur!"
+              Just t -> length $ triggerArgs t
+
+--     printTriggerOutput :: (String, [Maybe [Output]], Int) -> TraceElem
+--     printTriggerOutput (name, ls, argsLength) =
+--       signal name trig
+--       <>
+--       "\n"
+--       <>
+--       concatMap (\(v, n) -> signal n (showValues v)) (zip (args argsLength) argNames)
+--       where
+--         trig :: [String]
+--         trig = concatMap printTriggerOutputListElem ls
+--
+--         args :: Int -> [[Maybe Output]]
+--         args argsLength = transpose $ transMaybes ls argsLength
+--
+--         argNames = [name <> " arg \\#" <> show n | n <- [0..]]
+
+    -- Push Maybe's to inner level.
+    transMaybes :: [Maybe [Output]] -> Int -> [[Maybe Output]]
+    transMaybes []       _          = []
+    transMaybes (xs:xss) argsLength = case xs of
+      Just xs' -> map Just xs' : transMaybes xss argsLength
+      Nothing  -> replicate argsLength Nothing : transMaybes xss argsLength
+
+    obsvs :: [(String, [Output])]
+    obsvs = interpObservers e
 
 paint :: Int     -- ^ Number of steps to interpret.
       -> Spec    -- ^ Specification to interpret.
