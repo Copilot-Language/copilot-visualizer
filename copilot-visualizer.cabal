@@ -22,6 +22,7 @@ stability:           Experimental
 category:            Language, Embedded
 build-type:          Simple
 extra-source-files:  README.md, CHANGELOG
+data-files:          data/tikz.latex
 
 x-curation: uncurated
 
@@ -42,6 +43,8 @@ library
   build-depends:
     base       >= 4.9   && < 5,
     aeson,
+    directory,
+    filepath,
     pretty     >= 1.0   && < 1.2,
     ogma-extra >= 1.6.0 && < 1.7,
 
@@ -51,3 +54,7 @@ library
   exposed-modules:
 
     Copilot.Visualize
+
+  other-modules:
+
+    Paths_copilot_visualizer

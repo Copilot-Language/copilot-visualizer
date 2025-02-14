@@ -5,41 +5,67 @@
 module Copilot.Visualize
   where
 
-import Data.Aeson
-import Data.Maybe (isNothing, isJust, fromMaybe)
-import Data.List
 import Copilot.Core
 import Copilot.Interpret.Eval
+import Data.Aeson
+import Data.List
+import Data.Maybe               ( fromMaybe, isJust, isNothing )
 import GHC.Generics
+import Paths_copilot_visualizer
+import System.Directory
+import System.Directory.Extra
+import System.FilePath
 import Text.Printf
 import Text.Read
+import Debug.Trace
+
+data AppData = AppData
+    { adTraceElems :: Trace
+    , adLastSample :: Int
+    }
+  deriving (Generic, Show)
+
+instance ToJSON AppData
 
 data TraceElem = TraceElem
-  { teName      :: String
-  , teIsBoolean :: Bool
-  , teIsFloat   :: Bool
-  , teValues    :: [ String ]
-  }
+    { teName      :: String
+    , teValues    :: [ TraceValue ]
+    }
   deriving (Generic, Show)
 
 instance ToJSON TraceElem
+
+data TraceValue = TraceValue
+    { tvValue :: String
+    , tvIsBoolean :: Bool
+    , tvIsFloat   :: Bool
+    , tvIsEmpty   :: Bool
+    }
+  deriving (Generic, Show)
+
+instance ToJSON TraceValue
 
 type Trace = [ TraceElem ]
 
 makeTrace :: Int     -- ^ Number of steps to interpret.
           -> Spec    -- ^ Specification to interpret.
           -> IO ()
-makeTrace k spec =
-    print $ toJSON $ makeTraceEval k spec e
+makeTrace k spec = do
+    dir <- getDataDir
+    let f = dir </> "data"
+    let subs = toJSON $ makeTraceEval k spec e
+    print subs
+    print f
+    copyTemplate f subs "target"
   where
     e = eval Haskell k spec
 
 makeTraceEval :: Int
               -> Spec
               -> ExecTrace
-              -> Trace
+              -> AppData
 makeTraceEval k spec e =
-    observerTEs ++ triggerTEs
+    AppData (observerTEs ++ triggerTEs) (k - 1)
   where
     observerTEs = map observerTE obsvs
 
@@ -47,38 +73,38 @@ makeTraceEval k spec e =
 
     observerTE :: (String, [Output]) -> TraceElem
     observerTE (name, outputs) = TraceElem
-        { teName = name
-        , teIsBoolean = boolean
-        , teIsFloat   = float
-        , teValues    = outputs
+        { teName   = name
+        , teValues = map teVal outputs
         }
       where
-        boolean = case outputs of
-                    []    -> False
-                    (x:_) -> isBoolean x
+        teVal x = TraceValue (showValue x) (isBoolean x) (isFloat x) (x == "--")
 
-        float   = case outputs of
-                    []    -> False
-                    (x:_) -> isFloat x
+    showValue s | isBoolean s = showValueBoolean s
+                | isFloat s   = showValueFloat s
+                | otherwise   = s
+
+    showValueBoolean :: String -> String
+    showValueBoolean "true"  = "T"
+    showValueBoolean "false" = "F"
+
+    showValueFloat :: String -> String
+    showValueFloat "--" = "--"
+    showValueFloat s = trace s $ (formatFloat . read) s
+      where
+        formatFloat :: Double -> String
+        formatFloat = printf "%.2g"
 
     triggerTE :: (String, [[String]]) -> [TraceElem]
     triggerTE (name, ls) =
         map triggerArgTE (zip ls [0..])
       where
         triggerArgTE (values, i) =
-            TraceElem { teName      = name ++ " # " ++ show i
-                      , teIsBoolean = boolean
-                      , teIsFloat   = float
-                      , teValues    = values
+            TraceElem { teName   = name ++ " arg " ++ show i
+                      , teValues = values'
                       }
           where
-            boolean = case values of
-                        []    -> False
-                        (x:_) -> isBoolean x
-
-            float   = case values of
-                        []    -> False
-                        (x:_) -> isFloat x
+            values' = map teVal values
+            teVal x = TraceValue (showValue x) (isBoolean x) (isFloat x) (x == "--")
 
     trigs :: [(String, [[String]])]
     trigs = map (printOutputs . regroup) trigs'
@@ -106,22 +132,6 @@ makeTraceEval k spec e =
             argsLength = case find (\t -> triggerName t == name) (specTriggers spec) of
               Nothing -> error "Couldn't find given trigger in spec, should never occur!"
               Just t -> length $ triggerArgs t
-
---     printTriggerOutput :: (String, [Maybe [Output]], Int) -> TraceElem
---     printTriggerOutput (name, ls, argsLength) =
---       signal name trig
---       <>
---       "\n"
---       <>
---       concatMap (\(v, n) -> signal n (showValues v)) (zip (args argsLength) argNames)
---       where
---         trig :: [String]
---         trig = concatMap printTriggerOutputListElem ls
---
---         args :: Int -> [[Maybe Output]]
---         args argsLength = transpose $ transMaybes ls argsLength
---
---         argNames = [name <> " arg \\#" <> show n | n <- [0..]]
 
     -- Push Maybe's to inner level.
     transMaybes :: [Maybe [Output]] -> Int -> [[Maybe Output]]
