@@ -17,7 +17,6 @@ import System.Directory.Extra
 import System.FilePath
 import Text.Printf
 import Text.Read
-import Debug.Trace
 
 data AppData = AppData
     { adTraceElems :: Trace
@@ -94,7 +93,7 @@ makeTraceEval k spec e =
 
     showValueFloat :: String -> String
     showValueFloat "--" = "--"
-    showValueFloat s = trace s $ (formatFloat . read) s
+    showValueFloat s = formatFloat $ read s
       where
         formatFloat :: Double -> String
         formatFloat = printf "%.2g"
