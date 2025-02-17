@@ -17,6 +17,7 @@ import System.Directory.Extra
 import System.FilePath
 import Text.Printf
 import Text.Read
+import Debug.Trace
 
 data AppData = AppData
     { adTraceElems :: Trace
@@ -100,10 +101,10 @@ makeTraceEval k spec e =
 
     triggerTE :: (String, [[String]]) -> [TraceElem]
     triggerTE (name, ls) =
-        map triggerArgTE (zip ls [0..])
+        map triggerArgTE (zip ls ("" : map (\x -> "Arg" ++ show x) [0..]))
       where
         triggerArgTE (values, i) =
-            TraceElem { teName   = name ++ "Arg" ++ show i
+            TraceElem { teName   = name ++ i
                       , teIsBoolean = any tvIsBoolean values'
                       , teIsFloat   = any tvIsFloat values'
                       , teValues = values'
@@ -125,9 +126,9 @@ makeTraceEval k spec e =
         regroup :: (String, [Maybe [Output]], Int) -> (String, [[Maybe Output]])
         regroup (n, ls, len) = (n, map rep ls)
           where
-            rep :: Maybe [a] -> [Maybe a]
-            rep Nothing  = replicate len Nothing
-            rep (Just x) = map Just x
+            rep :: Maybe [Output] -> [Maybe Output]
+            rep Nothing  = Just "false" : replicate len Nothing
+            rep (Just x) = Just "true"  : map Just x
 
     trigs' :: [(String, [Maybe [Output]], Int)]
     trigs' = map addArgsLength (interpTriggers e)
