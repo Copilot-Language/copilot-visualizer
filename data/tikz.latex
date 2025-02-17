@@ -27,7 +27,7 @@ timing/d/text/.style={font=\sffamily\tiny},
 }
 \begin{tikztimingtable}
 <%#adTraceElems%>
-<%teName%> & g<%#teValues%><%#tvIsEmpty%>S<%/tvIsEmpty%><%^tvIsEmpty%><%#tvIsBoolean%>[fill=<%tvValue%>]D{\<%tvValue%>}<%/tvIsBoolean%><%^tvIsBoolean%>D{<%tvValue%>}<%/tvIsBoolean%><%/tvIsEmpty%><%/teValues%>\\
+<%teName%> & g<%#teValues%><%#tvIsEmpty%>S<%/tvIsEmpty%><%^tvIsEmpty%><%#teIsBoolean%>[fill=<%tvValue%>]D{\<%tvValue%>}<%/teIsBoolean%><%^teIsBoolean%>D{<%tvValue%>}<%/teIsBoolean%><%/tvIsEmpty%><%/teValues%>\\
 <%/adTraceElems%>
 \extracode
 \begin{background}[shift={(0.05,0)},help lines]

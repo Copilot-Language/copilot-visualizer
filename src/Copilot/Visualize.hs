@@ -41,8 +41,6 @@ instance ToJSON TraceElem
 
 data TraceValue = TraceValue
     { tvValue     :: String
-    , tvIsBoolean :: Bool
-    , tvIsFloat   :: Bool
     , tvIsEmpty   :: Bool
     }
   deriving (Generic, Show)
@@ -111,14 +109,14 @@ mkTraceElem :: (String, [Output]) -> TraceElem
 mkTraceElem (name, outputs) = TraceElem
     { teName      = name
     , teValues    = values
-    , teIsBoolean = any tvIsBoolean values
-    , teIsFloat   = any tvIsFloat values
+    , teIsBoolean = any (isBoolean . tvValue) values
+    , teIsFloat   = any (isFloat . tvValue) values
     }
   where
     values = map mkTraceValue outputs
 
 mkTraceValue :: String -> TraceValue
-mkTraceValue x = TraceValue (showValue x) (isBoolean x) (isFloat x) (isEmpty x)
+mkTraceValue x = TraceValue (showValue x) (isEmpty x)
 
 isEmpty :: String -> Bool
 isEmpty "" = True

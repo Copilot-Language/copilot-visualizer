@@ -74,7 +74,7 @@ num_rows = num_rows + 1;
 {{#adTraceElems}}
 {{teName}}: [
 {{#teValues}}
-{time: {{teName}}_ix++, value: {{#tvIsBoolean}}{{tvValue}}{{/tvIsBoolean}}{{#tvIsFloat}}{{tvValue}}{{/tvIsFloat}}{{^tvIsBoolean}}{{^tvIsFloat}}"{{tvValue}}"{{/tvIsFloat}}{{/tvIsBoolean}}, duration: 1},
+{time: {{teName}}_ix++, value: {{#teIsBoolean}}{{tvValue}}{{/teIsBoolean}}{{#teIsFloat}}{{tvValue}}{{/teIsFloat}}{{^teIsBoolean}}{{^teIsFloat}}"{{tvValue}}"{{/teIsFloat}}{{/teIsBoolean}}, duration: 1},
 {{/teValues}}
 ],
 {{/adTraceElems}}
