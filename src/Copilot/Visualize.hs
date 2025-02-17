@@ -82,19 +82,19 @@ interpTriggersWithArgs spec e = concatMap triggerOutputs (interpTriggers e)
       where
         -- Put the name of the trigger first, then add a name for each
         -- argument.
-        names = n : map (\x -> n ++ "Arg" ++ show x) [0..]
+        names = n : map (\ix -> n ++ "Arg" ++ show ix) [0..]
 
         -- Put the values of the trigger first, then add the values for each
         -- argument.
-        ls' = map triggerValue ls : transpose (map rep ls)
+        ls' = map triggerValue ls : transpose (map argValues ls)
 
         triggerValue :: Maybe [Output] -> Output
         triggerValue Nothing  = "false"
         triggerValue (Just _) = "true"
 
-        rep :: Maybe [Output] -> [Output]
-        rep Nothing  = replicate len ""
-        rep (Just x) = x
+        argValues :: Maybe [Output] -> [Output]
+        argValues Nothing  = replicate len ""
+        argValues (Just x) = x
 
         len = numArgs spec n
 
