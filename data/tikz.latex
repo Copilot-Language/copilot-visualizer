@@ -6,6 +6,8 @@
 \definecolor{false}{HTML}{ECD9ED}
 \definecolor{true}{HTML}{D9ECED}
 \begin{document}
+\newcommand{\true}{T}
+\newcommand{\false}{F}
 \tikzset{
 every picture/.style={
   execute at end picture={
@@ -25,7 +27,7 @@ timing/d/text/.style={font=\sffamily\tiny},
 }
 \begin{tikztimingtable}
 <%#adTraceElems%>
-<%teName%> & g<%#teValues%><%#tvIsEmpty%>S<%/tvIsEmpty%><%^tvIsEmpty%><%#tvIsBoolean%>[fill=<%tvValue%>]<%/tvIsBoolean%>D{<%tvValue%>}<%/tvIsEmpty%><%/teValues%>\\
+<%teName%> & g<%#teValues%><%#tvIsEmpty%>S<%/tvIsEmpty%><%^tvIsEmpty%><%#tvIsBoolean%>[fill=<%tvValue%>]D{\<%tvValue%>}<%/tvIsBoolean%><%^tvIsBoolean%>D{<%tvValue%>}<%/tvIsBoolean%><%/tvIsEmpty%><%/teValues%>\\
 <%/adTraceElems%>
 \extracode
 \begin{background}[shift={(0.05,0)},help lines]
