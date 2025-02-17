@@ -274,7 +274,7 @@ isBoolean "false" = True
 isBoolean _ = False
 
 isFloat s =
-  isJust asInt || isNothing asFloat
+  isJust asInt || isJust asFloat
   where
     asInt :: Maybe Int
     asInt = readMaybe s
