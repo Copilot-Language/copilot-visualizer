@@ -54,8 +54,8 @@ makeTrace k spec = do
     dir <- getDataDir
     let f = dir </> "data"
     let subs = toJSON $ makeTraceEval k spec e
-    print subs
-    print f
+    -- print subs
+    -- print f
     copyTemplate f subs "target"
   where
     e = eval Haskell k spec
