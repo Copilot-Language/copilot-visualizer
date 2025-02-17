@@ -17,7 +17,6 @@ import System.Directory.Extra
 import System.FilePath
 import Text.Printf
 import Text.Read
-import Debug.Trace
 
 data AppData = AppData
     { adTraceElems :: Trace
