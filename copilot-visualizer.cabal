@@ -23,6 +23,7 @@ category:            Language, Embedded
 build-type:          Simple
 extra-source-files:  README.md, CHANGELOG
 data-files:          data/tikz.latex
+                     data/timeline.html
 
 x-curation: uncurated
 

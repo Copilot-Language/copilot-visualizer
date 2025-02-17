@@ -3,8 +3,8 @@
 \usepackage{tikz}
 \usepackage{tikz-timing}
 \usepackage{xcolor}
-\definecolor{F}{HTML}{ECD9ED}
-\definecolor{T}{HTML}{D9ECED}
+\definecolor{false}{HTML}{ECD9ED}
+\definecolor{true}{HTML}{D9ECED}
 \begin{document}
 \tikzset{
 every picture/.style={

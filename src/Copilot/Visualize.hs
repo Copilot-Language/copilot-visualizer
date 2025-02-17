@@ -27,8 +27,12 @@ data AppData = AppData
 
 instance ToJSON AppData
 
+type Trace = [ TraceElem ]
+
 data TraceElem = TraceElem
     { teName      :: String
+    , teIsBoolean :: Bool
+    , teIsFloat   :: Bool
     , teValues    :: [ TraceValue ]
     }
   deriving (Generic, Show)
@@ -36,7 +40,7 @@ data TraceElem = TraceElem
 instance ToJSON TraceElem
 
 data TraceValue = TraceValue
-    { tvValue :: String
+    { tvValue     :: String
     , tvIsBoolean :: Bool
     , tvIsFloat   :: Bool
     , tvIsEmpty   :: Bool
@@ -44,8 +48,6 @@ data TraceValue = TraceValue
   deriving (Generic, Show)
 
 instance ToJSON TraceValue
-
-type Trace = [ TraceElem ]
 
 makeTrace :: Int     -- ^ Number of steps to interpret.
           -> Spec    -- ^ Specification to interpret.
@@ -74,9 +76,12 @@ makeTraceEval k spec e =
     observerTE :: (String, [Output]) -> TraceElem
     observerTE (name, outputs) = TraceElem
         { teName   = name
-        , teValues = map teVal outputs
+        , teValues = values
+        , teIsBoolean = any tvIsBoolean values
+        , teIsFloat   = any tvIsFloat values
         }
       where
+        values = map teVal outputs
         teVal x = TraceValue (showValue x) (isBoolean x) (isFloat x) (x == "--")
 
     showValue s | isBoolean s = showValueBoolean s
@@ -84,8 +89,8 @@ makeTraceEval k spec e =
                 | otherwise   = s
 
     showValueBoolean :: String -> String
-    showValueBoolean "true"  = "T"
-    showValueBoolean "false" = "F"
+    showValueBoolean "true"  = "true"
+    showValueBoolean "false" = "false"
 
     showValueFloat :: String -> String
     showValueFloat "--" = "--"
@@ -99,7 +104,9 @@ makeTraceEval k spec e =
         map triggerArgTE (zip ls [0..])
       where
         triggerArgTE (values, i) =
-            TraceElem { teName   = name ++ " arg " ++ show i
+            TraceElem { teName   = name ++ "Arg" ++ show i
+                      , teIsBoolean = any tvIsBoolean values'
+                      , teIsFloat   = any tvIsFloat values'
                       , teValues = values'
                       }
           where
