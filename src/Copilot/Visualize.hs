@@ -84,11 +84,17 @@ interpTriggersWithArgs spec e = concatMap triggerOutputs (interpTriggers e)
         -- argument.
         names = n : map (\x -> n ++ "Arg" ++ show x) [0..]
 
-        ls' = transpose $ map rep ls
+        -- Put the values of the trigger first, then add the values for each
+        -- argument.
+        ls' = map triggerValue ls : transpose (map rep ls)
+
+        triggerValue :: Maybe [Output] -> Output
+        triggerValue Nothing  = "false"
+        triggerValue (Just _) = "true"
 
         rep :: Maybe [Output] -> [Output]
-        rep Nothing  = "false" : replicate len "--"
-        rep (Just x) = "true"  : x
+        rep Nothing  = replicate len ""
+        rep (Just x) = x
 
         len = numArgs spec n
 
@@ -115,19 +121,19 @@ mkTraceValue :: String -> TraceValue
 mkTraceValue x = TraceValue (showValue x) (isBoolean x) (isFloat x) (isEmpty x)
 
 isEmpty :: String -> Bool
-isEmpty "--" = True
-isEmpty _    = False
+isEmpty "" = True
+isEmpty _  = False
 
 -- | True if the input value denotes a boolean value.
 isBoolean :: String -> Bool
-isBoolean "true" = True
+isBoolean "true"  = True
 isBoolean "false" = True
-isBoolean _ = False
+isBoolean _       = False
 
 -- | True if the input value denotes a floating point value.
 isFloat :: String -> Bool
 isFloat s =
-  isJust asInt || isJust asFloat
+    isJust asInt || isJust asFloat
   where
     asInt :: Maybe Int
     asInt = readMaybe s
@@ -142,7 +148,8 @@ showOutputM (Just v) = showValue v
 
 -- | Show a value.
 showValue :: String -> String
-showValue s | isFloat s = showValueFloat s
+showValue s | isEmpty s = "--"
+            | isFloat s = showValueFloat s
             | otherwise = s
 
 showValueFloat :: String -> String
