@@ -226,6 +226,30 @@ drawNumericRow(processNumericData(data.{{teName}}), i); i++;
           .attr("text-anchor", "middle")
           .text(d => d + "");
 
+      // Detect clicks on timeline.
+      svg.on("click", function(event) {
+          const mouseX = d3.pointer(event)[0];
+          const time   = Math.floor(xScale.invert(mouseX).toFixed(2));
+          const row    = Math.floor((event.offsetY - margin.top) / rowHeight);
+          const label  = labels[row];
+
+          console.log("Label:", label , "Time:", time);
+      });
+
+      // Detect mouse wheel on timeline.
+      svg.on("wheel", function(event) {
+          // Prevent default scroll behavior
+          event.preventDefault();
+
+          const mouseX = d3.pointer(event)[0];
+          const time   = Math.floor(xScale.invert(mouseX).toFixed(2));
+          const row    = Math.floor((event.offsetY - margin.top) / rowHeight);
+          const label  = labels[row];
+          const dir    = event.deltaY < 0 ? 'up' : 'down';
+
+          console.log ( "Label:", label, "Time:", time, "Direction:", dir);
+      });
+
     </script>
   </body>
 </html>
