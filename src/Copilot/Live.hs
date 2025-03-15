@@ -231,7 +231,7 @@ addStream name expr = do
 -- observe that Interpreter () is an alias for InterpreterT IO ()
 addStream' :: String -> String -> HI.Interpreter Core.Spec
 addStream' name expr = do
-  HI.setImportsQ [ ("Prelude", Nothing)
+  HI.setImportsQ [ ("Prelude", Just "P")
                  , ("Copilot.Language", Nothing)
                  , ("Copilot.Language.Spec", Nothing)
                  , ("Language.Copilot", Nothing)
