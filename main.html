@@ -64,6 +64,7 @@
       <button id="downloadSVG">Save as SVG</button>
       <button id="stepUp">+1 step</button>
       <button id="stepDown">-1 step</button>
+      <button id="addStream">Add Stream</button>
     </div>
 
     <script>
@@ -264,7 +265,7 @@
           const label  = data.adTraceElems[row].teName;
 
           console.log("Label:", label , "Time:", time);
-          ws.send('Up ' + time + ' ' + label);
+          ws.send('(Up ' + time + ', "' + label + '")');
         });
 
         // Detect mouse wheel on timeline.
@@ -278,7 +279,7 @@
           const label  = data.adTraceElems[row].teName;
           const dir    = event.deltaY < 0 ? 'Up' : 'Down';
 
-          ws.send(dir + ' ' + time + ' ' + label);
+          ws.send('(' + dir + ' ' + time + ', "' + label + '")');
 
           console.log ( "Label:", label, "Time:", time, "Direction:", dir);
         });
@@ -389,8 +390,14 @@
         ws.send('StepDown');
       }
 
+      function addStream()
+      {
+        ws.send('(AddStream "x1" "constF 3.0", "")');
+      }
+
       document.getElementById("stepUp").addEventListener("click", stepUp);
       document.getElementById("stepDown").addEventListener("click", stepDown);
+      document.getElementById("addStream").addEventListener("click", addStream);
     </script>
   </body>
 </html>

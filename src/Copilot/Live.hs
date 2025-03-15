@@ -5,19 +5,25 @@
 
 import           Control.Concurrent
 import           Control.Concurrent.MVar
-import           Control.Exception       ( finally )
+import           Control.Exception            (finally)
 import           Control.Monad
-import qualified Copilot.Core            as Core
+import qualified Copilot.Core                 as Core
 import           Copilot.Interpret.Eval
-import qualified Copilot.Visualize       as View
+import           Copilot.Language             hiding (interpret, typeOf)
+import qualified Copilot.Language
+import qualified Copilot.Visualize            as View
 import           Data.Aeson
-import qualified Data.Text               as T
+import           Data.List                    hiding ((++))
+import qualified Data.Text                    as T
 import           Data.Typeable
 import           GHC.Generics
 import           Language.Copilot
-import qualified Network.WebSockets      as WS
-import           Prelude                 hiding ( div, not, (++), (<), (>) )
+import           Language.Copilot             hiding (interpret, typeOf)
+import qualified Language.Haskell.Interpreter as HI
+import qualified Network.WebSockets           as WS
+import           Prelude                      hiding (div, not, (++), (<), (>))
 import qualified Prelude
+import           System.Directory
 
 main :: IO ()
 main = do
@@ -49,17 +55,19 @@ app spec pending = do
 
     loop conn v = forever $ do
       msg <- WS.receiveData conn
-      let (command, name) =
-            case T.unpack msg of
-              ('U':'p':' ':d:' ':s)         -> (Up (read [d]), s)
-              ('D':'o':'w':'n':' ':d:' ':s) -> (Down (read [d]), s)
-              v                             -> (Noop, v)
+      print msg
+      let (command, name) = read (T.unpack msg)
+            -- case  of
+            --   ('U':'p':' ':d:' ':s)         -> (Up (read [d]), s)
+            --   ('D':'o':'w':'n':' ':d:' ':s) -> (Down (read [d]), s)
+            --   v                             -> (Noop, v)
+      print command
 
       (k, spec') <- takeMVar v
-      let spec'' = case T.unpack msg of
-                     "StepUp"   -> spec'
-                     "StepDown" -> spec'
-                     _          -> apply spec' name command
+      spec'' <- case T.unpack msg of
+                  "StepUp"   -> pure spec'
+                  "StepDown" -> pure spec'
+                  _          -> apply spec' name command
 
       let k'     = case T.unpack msg of
                      "StepUp"   -> k + 1
@@ -114,11 +122,20 @@ toTraceElem te = TraceElem
 
 data Command = Up Int
              | Down Int
+             | AddStream String String
              | Noop
   deriving (Eq, Read, Show)
 
-apply :: Core.Spec -> String -> Command -> Core.Spec
-apply spec name command = spec
+apply :: Core.Spec -> String -> Command -> IO Core.Spec
+apply spec name (AddStream sName sExpr) = do
+  putStrLn "Here"
+  spec' <- addStream sName sExpr
+  putStrLn "Here 2"
+  let observers' = Core.specObservers spec'
+      observers  = Core.specObservers spec
+  return $ spec { Core.specObservers = observers Prelude.++ observers' }
+
+apply spec name command = pure $ spec
   { Core.specStreams =
       map (updateStream name command) (Core.specStreams spec)
   , Core.specObservers =
@@ -197,3 +214,21 @@ spec = do
   trigger "heatoff" (temp > 21) [arg (constI16 1), arg ctemp]
   observer "temperature" temp
   observer "temperature2" (temp + 1)
+
+addStream :: String -> String -> IO (Core.Spec)
+addStream name expr = do
+  r <- HI.runInterpreter (addStream' name expr)
+  case r of
+    Left err   -> error $ show err
+    Right spec -> return spec
+
+-- observe that Interpreter () is an alias for InterpreterT IO ()
+addStream' :: String -> String -> HI.Interpreter Core.Spec
+addStream' name expr = do
+  HI.setImportsQ [ ("Prelude", Nothing)
+              , ("Copilot.Language", Nothing)
+              , ("Language.Copilot", Nothing)
+              ]
+  a_stream <- HI.interpret expr (HI.as :: Stream Float)
+  let spec = observer name a_stream
+  HI.liftIO $ reify spec

@@ -32,6 +32,37 @@ source-repository head
     location:   https://github.com/Copilot-Language/copilot.git
     subdir:     copilot-visualizer
 
+executable copilot-live-backend
+  default-language:  Haskell2010
+
+  main-is: Copilot/Live.hs
+
+  hs-source-dirs:    src
+
+  ghc-options:
+    -Wall
+
+  build-depends:
+    base       >= 4.9   && < 5,
+    aeson,
+    directory,
+    filepath,
+    hint,
+    pretty     >= 1.0   && < 1.2,
+    ogma-extra >= 1.6.0 && < 1.7,
+
+    copilot-core        >= 4.2 && < 4.3,
+    copilot-interpreter >= 4.2 && < 4.3,
+    copilot-visualizer  >= 4.2 && < 4.3,
+    copilot-language,
+    copilot,
+    text,
+    websockets >= 0.12.7
+
+  other-modules:
+
+    Paths_copilot_visualizer
+
 library
 
   default-language:  Haskell2010
