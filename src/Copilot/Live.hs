@@ -25,6 +25,7 @@ import qualified Network.WebSockets           as WS
 import           Prelude                      hiding (div, not, (++), (<), (>))
 import qualified Prelude
 import           System.Directory
+import           Text.Read
 
 main :: IO ()
 main = do
@@ -39,36 +40,39 @@ makeTraceEval' k spec' =
 app :: Spec -> WS.ServerApp
 app spec pending = do
     conn <- WS.acceptRequest pending
-    WS.withPingThread conn 30 (return ()) $ do
-      spec' <- reify spec
+    WS.withPingThread conn 30 (return ()) $
+      handle (\(e :: SomeException) -> do putStrLn $ "Something went wrong:" Prelude.++ show e
+                                          error $ show e) $ do
+        spec' <- reify spec
 
-      let k = 3
+        let k = 3
 
-      v <- newMVar (k, spec')
+        v <- newMVar (k, spec')
 
-      let a = makeTraceEval' k spec'
-          samples = encode $ toJSON $ allSamples a
-      WS.sendTextData conn samples
+        let a = makeTraceEval' k spec'
+            samples = encode $ toJSON $ allSamples a
+        WS.sendTextData conn samples
 
-      loop conn v
+        loop conn v
 
   where
 
     loop conn v = forever $ do
       msg <- WS.receiveData conn
       print msg
-      let (command, name) = read (T.unpack msg)
+      let pair = readMaybe (T.unpack msg)
             -- case  of
             --   ('U':'p':' ':d:' ':s)         -> (Up (read [d]), s)
             --   ('D':'o':'w':'n':' ':d:' ':s) -> (Down (read [d]), s)
             --   v                             -> (Noop, v)
-      print command
+      print pair
 
       (k, spec') <- takeMVar v
-      spec'' <- case T.unpack msg of
-                  "StepUp"   -> pure spec'
-                  "StepDown" -> pure spec'
-                  _          -> apply spec' name command
+      spec'' <- case (T.unpack msg, pair) of
+                  ("StepUp", _)   -> pure spec'
+                  ("StepDown", _) -> pure spec'
+                  (_, Just (command, name)) -> apply spec' name command
+                  _ -> pure spec'
 
       let k'     = case T.unpack msg of
                      "StepUp"   -> k + 1
