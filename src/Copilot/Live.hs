@@ -139,6 +139,9 @@ apply spec name (AddStream sName sExpr) = do
   putStrLn "Here"
   spec' <- addStream sName sExpr
   putStrLn "Here 2"
+  -- TODO: I need to bring the streams from the other spec too, otherwise the
+  -- streams to include may refer to streams by ID that are in a different
+  -- scope.
   let observers' = Core.specObservers spec'
       observers  = Core.specObservers spec
   return $ spec { Core.specObservers = observers Prelude.++ observers' }
@@ -212,13 +215,13 @@ temp = extern "temperature" (Just [0, 15, 20, 25, 30])
 ctemp :: Stream Float
 ctemp = (unsafeCast temp) * (150.0 / 255.0) - 50.0
 
-trueFalse :: Stream Bool
-trueFalse = [True] ++ not trueFalse
+-- trueFalse :: Stream Bool
+-- trueFalse = [True] ++ not trueFalse
 
 spec = do
   -- Triggers that fire when the ctemp is too low or too high,
   -- pass the current ctemp as an argument.
-  trigger "heaton"  (temp < 18) [arg ctemp, arg (constI16 1), arg trueFalse]
+  trigger "heaton"  (temp < 18) [arg ctemp, arg (constI16 1)] -- , arg trueFalse]
   trigger "heatoff" (temp > 21) [arg (constI16 1), arg ctemp]
   observer "temperature" temp
   observer "temperature2" (temp + 1)
