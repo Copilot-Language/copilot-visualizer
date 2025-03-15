@@ -94,16 +94,19 @@ data Data = Data
 instance ToJSON Data
 
 data TraceElem = TraceElem
-    { teName :: String
+    { teName      :: String
     , teIsBoolean :: Bool
-    , teValues :: [Sample]
+    , teValues    :: [Sample]
     }
   deriving (Generic)
 
 instance ToJSON TraceElem
 
 data Sample = Sample
-    { time :: Int, value :: String, duration :: Float }
+    { time     :: Int
+    , value    :: String
+    , duration :: Float
+    }
   deriving (Generic)
 
 instance ToJSON Sample
