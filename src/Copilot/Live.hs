@@ -61,10 +61,6 @@ app spec pending = do
       msg <- WS.receiveData conn
       print msg
       let pair = readMaybe (T.unpack msg)
-            -- case  of
-            --   ('U':'p':' ':d:' ':s)         -> (Up (read [d]), s)
-            --   ('D':'o':'w':'n':' ':d:' ':s) -> (Down (read [d]), s)
-            --   v                             -> (Noop, v)
       print pair
 
       (k, spec') <- takeMVar v
