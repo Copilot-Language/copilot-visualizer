@@ -5,7 +5,7 @@
 
 import           Control.Concurrent
 import           Control.Concurrent.MVar
-import           Control.Exception            (finally)
+import           Control.Exception            (handle, SomeException(..), finally)
 import           Control.Monad
 import qualified Copilot.Core                 as Core
 import           Copilot.Interpret.Eval
@@ -20,6 +20,7 @@ import           GHC.Generics
 import           Language.Copilot
 import           Language.Copilot             hiding (interpret, typeOf)
 import qualified Language.Haskell.Interpreter as HI
+import qualified Language.Haskell.Interpreter.Unsafe as HI
 import qualified Network.WebSockets           as WS
 import           Prelude                      hiding (div, not, (++), (<), (>))
 import qualified Prelude
@@ -219,16 +220,30 @@ addStream :: String -> String -> IO (Core.Spec)
 addStream name expr = do
   r <- HI.runInterpreter (addStream' name expr)
   case r of
-    Left err   -> error $ show err
+    Left err   -> do putStrLn $ "There was an error, and here it is: " Prelude.++ show err
+                     error $ show err
     Right spec -> return spec
 
 -- observe that Interpreter () is an alias for InterpreterT IO ()
 addStream' :: String -> String -> HI.Interpreter Core.Spec
 addStream' name expr = do
   HI.setImportsQ [ ("Prelude", Nothing)
-              , ("Copilot.Language", Nothing)
-              , ("Language.Copilot", Nothing)
-              ]
-  a_stream <- HI.interpret expr (HI.as :: Stream Float)
-  let spec = observer name a_stream
+                 , ("Copilot.Language", Nothing)
+                 , ("Copilot.Language.Spec", Nothing)
+                 , ("Language.Copilot", Nothing)
+                 , ("Data.Functor.Identity", Nothing)
+                 , ("Control.Monad.Writer", Nothing)
+                 ]
+
+  -- For debugging purposes only: let completeExpr = "observer \"h1\" (constF 3.0)"
+  let completeExpr = concat [ "observer "
+                            , show name
+                            , " ("
+                            , expr
+                            , ")"
+                            ]
+
+  -- HI.liftIO $ putStrLn $ "I'm about to interpret " ++ completeExpr
+  spec <- HI.interpret completeExpr (HI.as :: Spec)
+  -- HI.liftIO $ putStrLn "completed"
   HI.liftIO $ reify spec
