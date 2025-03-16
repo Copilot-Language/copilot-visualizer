@@ -203,26 +203,20 @@ updateValue _        _          (ix, a) = a
 
 -- * Sample spec
 
--- External temperature as a byte, range of -50C to 100C
-temp :: Stream Word8
-temp = extern "temperature" (Just [0, 15, 20, 25, 30])
-
--- Calculate temperature in Celsius.
--- We need to cast the Word8 to a Float. Note that it is an unsafeCast, as there
--- is no direct relation between Word8 and Float.
-ctemp :: Stream Float
-ctemp = (unsafeCast temp) * (150.0 / 255.0) - 50.0
-
--- trueFalse :: Stream Bool
--- trueFalse = [True] ++ not trueFalse
-
 spec = do
-  -- Triggers that fire when the ctemp is too low or too high,
-  -- pass the current ctemp as an argument.
-  trigger "heaton"  (temp < 18) [arg ctemp, arg (constI16 1)] -- , arg trueFalse]
-  trigger "heatoff" (temp > 21) [arg (constI16 1), arg ctemp]
-  observer "temperature" temp
-  observer "temperature2" (temp + 1)
+    trigger "heaton"  (temp < 18) [arg ctemp, arg (constI16 1), arg trueFalse]
+    trigger "heatoff" (temp > 21) [arg (constI16 1), arg ctemp]
+    observer "temperature" temp
+    observer "temperature2" (temp + 1)
+  where
+    temp :: Stream Word8
+    temp = extern "temperature" (Just [0, 15, 20, 25, 30])
+
+    ctemp :: Stream Float
+    ctemp = (unsafeCast temp) * (150.0 / 255.0) - 50.0
+
+    trueFalse :: Stream Bool
+    trueFalse = [True] ++ not trueFalse
 
 addStream :: String -> String -> IO (Core.Spec)
 addStream name expr = do
