@@ -32,34 +32,35 @@ import           Text.Read
 main :: IO ()
 main = do
   putStrLn "WebSocket server starting on port 9160..."
-  WS.runServer "127.0.0.1" 9160 (app spec)
+  WS.runServer "127.0.0.1" 9160 app
 
 makeTraceEval' k spec' =
   View.makeTraceEval k spec' (eval Haskell k spec')
 
 -- * App
 
-app :: Spec -> WS.ServerApp
-app spec pending = do
+app :: WS.ServerApp
+app pending = do
     conn <- WS.acceptRequest pending
     WS.withPingThread conn 30 (return ()) $
       handle (\(e :: SomeException) -> do putStrLn $ "Something went wrong:" Prelude.++ show e
                                           error $ show e) $ do
-        spec' <- reify spec
+        spec' <- readSpec spec
 
         let k = 3
 
+        specV <- newMVar spec
         v <- newMVar (k, spec')
 
         let a = makeTraceEval' k spec'
             samples = encode $ toJSON $ allSamples a
         WS.sendTextData conn samples
 
-        loop conn v
+        loop conn v specV
 
   where
 
-    loop conn v = forever $ do
+    loop conn v specV = forever $ do
       msg <- WS.receiveData conn
       print msg
       let pair = readMaybe (T.unpack msg)
@@ -69,6 +70,21 @@ app spec pending = do
       spec'' <- case (T.unpack msg, pair) of
                   ("StepUp", _)   -> pure spec'
                   ("StepDown", _) -> pure spec'
+                  (_, Just (AddStream name expr, _)) -> do
+                     spec <- takeMVar specV
+                     let specN = spec Prelude.++ "\n" Prelude.++
+                                 "      " Prelude.++ completeExpr
+                         completeExpr = concat [ "observer "
+                                               , show name
+                                               , " ("
+                                               , expr
+                                               , ")"
+                                               ]
+                     let trace = extractTrace spec'
+                     spec2 <- readSpec specN
+                     putMVar specV specN
+                     let spec3 = updateWithTrace trace spec2
+                     return spec3
                   (_, Just (command, name)) -> apply spec' name command
                   _ -> pure spec'
 
@@ -203,20 +219,43 @@ updateValue _        _          (ix, a) = a
 
 -- * Sample spec
 
-spec = do
-    trigger "heaton"  (temp < 18) [arg ctemp, arg (constI16 1), arg trueFalse]
-    trigger "heatoff" (temp > 21) [arg (constI16 1), arg ctemp]
-    observer "temperature" temp
-    observer "temperature2" (temp + 1)
-  where
-    temp :: Stream Word8
-    temp = extern "temperature" (Just [0, 15, 20, 25, 30])
+spec :: String
+spec = unlines
+  [ "let temperature :: Stream Word8"
+  , "    temperature = extern \"temperature\" (Just [0, 15, 20, 25, 30])"
+  , ""
+  , "    ctemp :: Stream Float"
+  , "    ctemp = (unsafeCast temperature) * (150.0 / 255.0) - 50.0"
+  , ""
+  , "    trueFalse :: Stream Bool"
+  , "    trueFalse = [True] ++ not trueFalse"
+  , ""
+  , "in do trigger \"heaton\"  (temperature < 18) [arg ctemp, arg (constI16 1), arg trueFalse]"
+  , "      trigger \"heatoff\" (temperature > 21) [arg (constI16 1), arg ctemp]"
+  , "      observer \"temperature\" temperature"
+  , "      observer \"temperature2\" (temperature + 1)"
+  ]
 
-    ctemp :: Stream Float
-    ctemp = (unsafeCast temp) * (150.0 / 255.0) - 50.0
+spec' :: String -> HI.Interpreter Core.Spec
+spec' spec = do
+  HI.setImportsQ [ ("Prelude", Just "P")
+                 , ("Copilot.Language", Nothing)
+                 , ("Copilot.Language.Spec", Nothing)
+                 , ("Language.Copilot", Nothing)
+                 , ("Data.Functor.Identity", Nothing)
+                 , ("Control.Monad.Writer", Nothing)
+                 ]
 
-    trueFalse :: Stream Bool
-    trueFalse = [True] ++ not trueFalse
+  spec' <- HI.interpret spec (HI.as :: Spec)
+  HI.liftIO $ reify spec'
+
+readSpec :: String -> IO Core.Spec
+readSpec spec = do
+  r <- HI.runInterpreter (spec' spec)
+  case r of
+    Left err -> do putStrLn $ "There was an error, and here it is: " Prelude.++ show err
+                   error $ show err
+    Right s  -> return s
 
 addStream :: String -> String -> IO (Core.Spec)
 addStream name expr = do
