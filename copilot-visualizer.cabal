@@ -45,7 +45,6 @@ executable copilot-live-backend
   build-depends:
     base       >= 4.9   && < 5,
     aeson,
-    directory,
     filepath,
     hint,
     pretty     >= 1.0   && < 1.2,
@@ -75,7 +74,6 @@ library
   build-depends:
     base       >= 4.9   && < 5,
     aeson,
-    directory,
     filepath,
     pretty     >= 1.0   && < 1.2,
     ogma-extra >= 1.6.0 && < 1.7,
