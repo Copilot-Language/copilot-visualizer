@@ -2,23 +2,23 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
-import           Control.Concurrent.MVar (newMVar, takeMVar, putMVar)
+import           Control.Concurrent.MVar             (newMVar, putMVar,
+                                                      takeMVar)
 import           Control.Exception                   (SomeException (..),
                                                       finally, handle)
-import           Control.Monad (forever)
+import           Control.Monad                       (forever)
 import qualified Copilot.Core                        as Core
-import           Copilot.Interpret.Eval (eval, ShowType(Haskell))
+import           Copilot.Interpret.Eval              (ShowType (Haskell), eval)
 import           Copilot.Language                    hiding (interpret, typeOf)
 import qualified Copilot.Language
 import qualified Copilot.Visualize                   as View
-import           Data.Aeson (ToJSON(..), encode)
+import           Data.Aeson                          (ToJSON (..), encode)
 import           Data.List                           hiding ((++))
 import           Data.Maybe                          (fromMaybe)
 import qualified Data.Text                           as T
 import qualified Data.Type.Equality                  as DE
-import           Data.Typeable (Typeable)
-import           GHC.Generics (Generic)
+import           Data.Typeable                       (Typeable)
+import           GHC.Generics                        (Generic)
 import           Language.Copilot                    hiding (interpret, typeOf)
 import qualified Language.Haskell.Interpreter        as HI
 import qualified Language.Haskell.Interpreter.Unsafe as HI
@@ -26,7 +26,7 @@ import qualified Network.WebSockets                  as WS
 import           Prelude                             hiding (div, not, (++),
                                                       (<), (>))
 import qualified Prelude
-import           Text.Read (readMaybe)
+import           Text.Read                           (readMaybe)
 
 -- | Open a websocket to listen to commands from the web visualization and
 -- communicate results.
