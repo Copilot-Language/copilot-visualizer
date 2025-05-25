@@ -41,7 +41,7 @@ module Copilot.Visualize.Live
   where
 
 import           Control.Concurrent.MVar             (newMVar, putMVar,
-                                                      takeMVar)
+                                                      takeMVar, MVar)
 import           Control.Exception                   (SomeException (..),
                                                       finally, handle)
 import           Control.Monad                       (forever)
@@ -109,12 +109,12 @@ mkDefaultVisualSettings = VisualSettings
   { visualSettingsInitialSteps = 3
   , visualSettingsHost         = "127.0.0.1"
   , visualSettingsPort         = 9160
-  , visualSettingsImports      = [ ("Prelude",               Just "P")
+  , visualSettingsImports      = [ ("Control.Monad.Writer",  Nothing)
                                  , ("Copilot.Language",      Nothing)
                                  , ("Copilot.Language.Spec", Nothing)
-                                 , ("Language.Copilot",      Nothing)
                                  , ("Data.Functor.Identity", Nothing)
-                                 , ("Control.Monad.Writer",  Nothing)
+                                 , ("Language.Copilot",      Nothing)
+                                 , ("Prelude",               Just "P")
                                  ]
   }
 
@@ -123,66 +123,94 @@ mkDefaultVisualSettings = VisualSettings
 -- | Server application using web sockets.
 app :: VisualSettings -> String -> WS.ServerApp
 app settings spec pending = do
-    conn <- WS.acceptRequest pending
-    WS.withPingThread conn 30 (return ()) $
-      handle (\(e :: SomeException) -> do putStrLn $ "Error:" Prelude.++ show e
-                                          error $ show e) $ do
-        spec' <- readSpec settings spec
+  conn <- WS.acceptRequest pending
+  WS.withPingThread conn 30 (return ()) $ appInit settings spec conn
 
-        let k = visualSettingsInitialSteps settings
+-- | Initialize the backend.
+appInit :: VisualSettings -> String -> WS.Connection -> IO ()
+appInit settings spec conn = handle appException $ do
+    -- Save the literal (string) spec, so that it can be modified later.
+    specV <- newMVar spec
 
-        specV <- newMVar spec
-        v <- newMVar (k, spec')
+    -- Load the spec, and save it so that it doesn't need to be reloaded if it
+    -- doesn't change.
+    spec' <- readSpec settings spec
+    let numSteps = visualSettingsInitialSteps settings
+    v <- newMVar (numSteps, spec')
 
-        let a = makeTraceEval' k spec'
-            samples = encode $ toJSON $ allSamples a
-        WS.sendTextData conn samples
+    -- Obtain the static values of the trace.
+    let appData = makeTraceEval' numSteps spec'
 
-        loop conn v specV
+    -- Communicate the current values of the trace to the user interface.
+    let samples = encode $ toJSON $ allSamples appData
+    WS.sendTextData conn samples
+
+    -- Start the application loop.
+    appMainLoop settings conn v specV
 
   where
 
-    makeTraceEval' k spec' =
-      View.makeTraceEval k spec' (eval Haskell k spec')
+    appException :: SomeException -> IO ()
+    appException e = do
+      putStrLn $ "Error:" Prelude.++ show e
+      error $ show e
 
-    loop conn v specV = forever $ do
-      msg <- WS.receiveData conn
-      print msg
-      let pair = readMaybe (T.unpack msg)
-      print pair
+appMainLoop :: VisualSettings
+            -> WS.Connection
+            -> MVar (Int, Core.Spec)
+            -> MVar String
+            -> IO ()
+appMainLoop settings conn v specV = forever $ do
+  msg <- T.unpack <$> WS.receiveData conn
 
-      (k, spec') <- takeMVar v
-      spec'' <- case (T.unpack msg, pair) of
-                  ("StepUp", _)   -> pure spec'
-                  ("StepDown", _) -> pure spec'
-                  (_, Just (AddStream name expr, _)) -> do
-                     spec <- takeMVar specV
-                     let specN = spec Prelude.++ "\n" Prelude.++
-                                 "      " Prelude.++ completeExpr
-                         completeExpr = concat [ "observer "
-                                               , show name
-                                               , " ("
-                                               , expr
-                                               , ")"
-                                               ]
-                     let trace = extractTrace spec'
-                     spec2 <- readSpec settings specN
-                     putMVar specV specN
-                     let spec3 = updateWithTrace trace spec2
-                     return spec3
-                  (_, Just (command, name)) -> apply settings spec' name command
-                  _ -> pure spec'
+  let pair :: Maybe (Command, String)
+      pair = readMaybe msg
 
-      let k'     = case T.unpack msg of
-                     "StepUp"   -> k + 1
-                     "StepDown" -> k - 1
-                     _          -> k
+  (numSteps, spec') <- takeMVar v
 
-      putMVar v (k', spec'')
+  -- Update the number of steps based on the input command received.
+  let numSteps' = case msg of
+                    "StepUp"   -> numSteps + 1
+                    "StepDown" -> numSteps - 1
+                    _          -> numSteps
 
-      let a       = makeTraceEval' k' spec''
-          samples = encode $ toJSON $ allSamples a
-      WS.sendTextData conn samples
+  -- Update the spec based on the input command received.
+  spec'' <- case (msg, pair) of
+
+              ("StepUp",   _) -> pure spec'
+
+              ("StepDown", _) -> pure spec'
+
+              (_, Just (AddStream name expr, _)) -> do
+                specS <- takeMVar specV
+                let specN = specS Prelude.++ "\n" Prelude.++
+                            "      " Prelude.++ completeExpr
+                    completeExpr = concat [ "observer "
+                                          , show name
+                                          , " ("
+                                          , expr
+                                          , ")"
+                                          ]
+                let trace = extractTrace spec'
+                spec2 <- readSpec settings specN
+                putMVar specV specN
+                let spec3 = updateWithTrace trace spec2
+                return spec3
+
+              (_, Just (command, name)) -> apply settings spec' name command
+
+              _ -> pure spec'
+
+  -- Update the mvar with the new number of steps and spec.
+  putMVar v (numSteps', spec'')
+
+  let a       = makeTraceEval' numSteps' spec''
+      samples = encode $ toJSON $ allSamples a
+  WS.sendTextData conn samples
+
+makeTraceEval' :: Int -> Core.Spec -> View.AppData
+makeTraceEval' numSteps spec' =
+  View.makeTraceEval numSteps spec' (eval Haskell numSteps spec')
 
 -- | Data to communicate to the client.
 data Data = Data
@@ -353,12 +381,7 @@ addStream settings name expr = do
 addStream' :: VisualSettings -> String -> String -> HI.Interpreter Core.Spec
 addStream' settings name expr = do
   HI.setImportsQ (visualSettingsImports settings)
-  let completeExpr = concat [ "observer "
-                            , show name
-                            , " ("
-                            , expr
-                            , ")"
-                            ]
+  let completeExpr = concat [ "observer ", show name, " (", expr, ")" ]
 
   spec <- HI.interpret completeExpr (HI.as :: Spec)
   HI.liftIO $ reify spec
