@@ -65,4 +65,6 @@ library
 
   other-modules:
 
+    Copilot.Visualize.Dynamic
+    Copilot.Visualize.Trace
     Paths_copilot_visualizer
