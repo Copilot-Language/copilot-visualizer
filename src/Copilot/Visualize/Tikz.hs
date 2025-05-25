@@ -7,7 +7,7 @@
 --
 -- The helper function 'makeTrace' expands a latex file that produces the
 -- trace visualization as a figure.
-module Copilot.Visualize
+module Copilot.Visualize.Tikz
     ( AppData(..)
     , TraceElem(..)
     , TraceValue(..)

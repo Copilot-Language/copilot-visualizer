@@ -2,6 +2,44 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+-- | Run the interactive Copilot visualizer on a websocket.
+--
+-- This visualizer allows you to add new streams to the visualization. In
+-- order to do so, it's necessary for the visualizer to have access to the
+-- original spec, and to interpret new expressions in the same context as the
+-- prior expressions.
+--
+-- An example of a spec that can be passed as argument to the visualizer
+-- follows:
+--
+-- @
+--   spec :: String
+--   spec = unlines
+--     [ "let temperature :: Stream Word8"
+--     , "    temperature = extern \"temperature\" (Just [0, 15, 20, 25, 30])"
+--     , ""
+--     , "    ctemp :: Stream Float"
+--     , "    ctemp = (unsafeCast temperature) * (150.0 / 255.0) - 50.0"
+--     , ""
+--     , "    trueFalse :: Stream Bool"
+--     , "    trueFalse = [True] ++ not trueFalse"
+--     , ""
+--     , "in do trigger \"heaton\"  (temperature < 18) [arg ctemp, arg (constI16 1), arg trueFalse]"
+--     , "      trigger \"heatoff\" (temperature > 21) [arg (constI16 1), arg ctemp]"
+--     , "      observer \"temperature\" temperature"
+--     , "      observer \"temperature2\" (temperature + 1)"
+--     ]
+-- @
+--
+-- The imports are predefined.
+module Copilot.Visualize.Live
+    ( visualize
+    , visualizeWith
+    , VisualSettings(..)
+    , mkDefaultVisualSettings
+    )
+  where
+
 import           Control.Concurrent.MVar             (newMVar, putMVar,
                                                       takeMVar)
 import           Control.Exception                   (SomeException (..),
@@ -11,7 +49,7 @@ import qualified Copilot.Core                        as Core
 import           Copilot.Interpret.Eval              (ShowType (Haskell), eval)
 import           Copilot.Language                    hiding (interpret, typeOf)
 import qualified Copilot.Language
-import qualified Copilot.Visualize                   as View
+import qualified Copilot.Visualize.Tikz              as View
 import           Data.Aeson                          (ToJSON (..), encode)
 import           Data.List                           hiding ((++))
 import           Data.Maybe                          (fromMaybe)
@@ -30,23 +68,68 @@ import           Text.Read                           (readMaybe)
 
 -- | Open a websocket to listen to commands from the web visualization and
 -- communicate results.
-main :: IO ()
-main = do
-  putStrLn "WebSocket server starting on port 9160..."
-  WS.runServer "127.0.0.1" 9160 app
+visualize :: String -> IO ()
+visualize = visualizeWith mkDefaultVisualSettings
 
--- * App
+-- | Open a websocket to listen to commands from the web visualization and
+-- communicate results.
+visualizeWith :: VisualSettings -> String -> IO ()
+visualizeWith settings spec = do
+  putStrLn $ concat
+    [ "WebSocket server starting on port "
+    , show (visualSettingsPort settings)
+    ,  "..."
+    ]
+  WS.runServer
+    (visualSettingsHost settings)
+    (visualSettingsPort settings)
+    (app settings spec)
+
+-- Settings used to customize the code generated.
+data VisualSettings = VisualSettings
+  { visualSettingsInitialSteps :: Int
+                                  -- ^ Number of simulation steps to run
+                                  -- initially.
+
+  , visualSettingsHost         :: String
+                                  -- ^ Host interface to listen to. Use
+                                  -- "127.0.0.1" to listen at localhost.
+
+  , visualSettingsPort         :: Int
+                                  -- ^ Port to listen to.
+
+  , visualSettingsImports      :: [(String, Maybe String)]
+                                   -- ^ Imports, qualified of applicable.
+  }
+
+-- | Default settings that simulates 3 steps and listens on localhost at port
+-- 9160.
+mkDefaultVisualSettings :: VisualSettings
+mkDefaultVisualSettings = VisualSettings
+  { visualSettingsInitialSteps = 3
+  , visualSettingsHost         = "127.0.0.1"
+  , visualSettingsPort         = 9160
+  , visualSettingsImports      = [ ("Prelude",               Just "P")
+                                 , ("Copilot.Language",      Nothing)
+                                 , ("Copilot.Language.Spec", Nothing)
+                                 , ("Language.Copilot",      Nothing)
+                                 , ("Data.Functor.Identity", Nothing)
+                                 , ("Control.Monad.Writer",  Nothing)
+                                 ]
+  }
+
+-- * Server
 
 -- | Server application using web sockets.
-app :: WS.ServerApp
-app pending = do
+app :: VisualSettings -> String -> WS.ServerApp
+app settings spec pending = do
     conn <- WS.acceptRequest pending
     WS.withPingThread conn 30 (return ()) $
       handle (\(e :: SomeException) -> do putStrLn $ "Error:" Prelude.++ show e
                                           error $ show e) $ do
-        spec' <- readSpec spec
+        spec' <- readSpec settings spec
 
-        let k = 3
+        let k = visualSettingsInitialSteps settings
 
         specV <- newMVar spec
         v <- newMVar (k, spec')
@@ -83,11 +166,11 @@ app pending = do
                                                , ")"
                                                ]
                      let trace = extractTrace spec'
-                     spec2 <- readSpec specN
+                     spec2 <- readSpec settings specN
                      putMVar specV specN
                      let spec3 = updateWithTrace trace spec2
                      return spec3
-                  (_, Just (command, name)) -> apply spec' name command
+                  (_, Just (command, name)) -> apply settings spec' name command
                   _ -> pure spec'
 
       let k'     = case T.unpack msg of
@@ -142,9 +225,10 @@ toTraceElem :: View.TraceElem -> TraceElem
 toTraceElem te = TraceElem
   { teName      = View.teName te
   , teIsBoolean = View.teIsBoolean te
-  , teValues    = map
-                    (\(i, v) -> Sample i (View.tvValue v) 1)
-                    (zip [0..] (View.teValues te))
+  , teValues    = zipWith
+                    (\i v -> Sample i (View.tvValue v) 1)
+                    [0..]
+                    (View.teValues te)
   }
 
 -- * Commands
@@ -157,9 +241,9 @@ data Command = Up Int
   deriving (Eq, Read, Show)
 
 -- | Apply a command to a visualization.
-apply :: Core.Spec -> String -> Command -> IO Core.Spec
-apply spec name (AddStream sName sExpr) = do
-  spec' <- addStream sName sExpr
+apply :: VisualSettings -> Core.Spec -> String -> Command -> IO Core.Spec
+apply settings spec name (AddStream sName sExpr) = do
+  spec' <- addStream settings sName sExpr
   -- TODO: I need to bring the streams from the other spec too, otherwise the
   -- streams to include may refer to streams by ID that are in a different
   -- scope.
@@ -167,7 +251,7 @@ apply spec name (AddStream sName sExpr) = do
       observers  = Core.specObservers spec
   return $ spec { Core.specObservers = observers Prelude.++ observers' }
 
-apply spec name command = pure $ spec
+apply settings spec name command = pure $ spec
   { Core.specStreams =
       map (updateStream name command) (Core.specStreams spec)
   , Core.specObservers =
@@ -216,7 +300,7 @@ updateUExpr name cmd (Core.UExpr ty e) = Core.UExpr ty (updateExpr name cmd e)
 -- | Apply a command to a stream.
 updateStream :: String -> Command -> Core.Stream -> Core.Stream
 updateStream name command (Core.Stream i b e ty) =
-  (Core.Stream i b (updateExpr name command e) ty)
+  Core.Stream i b (updateExpr name command e) ty
 
 -- | Apply a command to a series of typed values, if any.
 updateValues :: Maybe [a] -> Type a -> Command -> Maybe [a]
@@ -237,50 +321,26 @@ updateValue _        _          (ix, a) = a
 
 -- * Sample spec
 
-spec :: String
-spec = unlines
-  [ "let temperature :: Stream Word8"
-  , "    temperature = extern \"temperature\" (Just [0, 15, 20, 25, 30])"
-  , ""
-  , "    ctemp :: Stream Float"
-  , "    ctemp = (unsafeCast temperature) * (150.0 / 255.0) - 50.0"
-  , ""
-  , "    trueFalse :: Stream Bool"
-  , "    trueFalse = [True] ++ not trueFalse"
-  , ""
-  , "in do trigger \"heaton\"  (temperature < 18) [arg ctemp, arg (constI16 1), arg trueFalse]"
-  , "      trigger \"heatoff\" (temperature > 21) [arg (constI16 1), arg ctemp]"
-  , "      observer \"temperature\" temperature"
-  , "      observer \"temperature2\" (temperature + 1)"
-  ]
-
 -- | Load a spec from a string, adding standard imports.
-loadSpec :: String -> HI.Interpreter Core.Spec
-loadSpec spec = do
-  HI.setImportsQ [ ("Prelude",               Just "P")
-                 , ("Copilot.Language",      Nothing)
-                 , ("Copilot.Language.Spec", Nothing)
-                 , ("Language.Copilot",      Nothing)
-                 , ("Data.Functor.Identity", Nothing)
-                 , ("Control.Monad.Writer",  Nothing)
-                 ]
-
+loadSpec :: VisualSettings -> String -> HI.Interpreter Core.Spec
+loadSpec settings spec = do
+  HI.setImportsQ (visualSettingsImports settings)
   spec' <- HI.interpret spec (HI.as :: Spec)
   HI.liftIO $ reify spec'
 
 -- | Read a specification from a string and reify it.
-readSpec :: String -> IO Core.Spec
-readSpec spec = do
-  r <- HI.runInterpreter (loadSpec spec)
+readSpec :: VisualSettings -> String -> IO Core.Spec
+readSpec settings spec = do
+  r <- HI.runInterpreter (loadSpec settings spec)
   case r of
     Left err -> do putStrLn $ "Error: " Prelude.++ show err
                    error $ show err
     Right s  -> return s
 
 -- | Produce a specification from the expression for a stream.
-addStream :: String -> String -> IO Core.Spec
-addStream name expr = do
-  r <- HI.runInterpreter (addStream' name expr)
+addStream :: VisualSettings -> String -> String -> IO Core.Spec
+addStream settings name expr = do
+  r <- HI.runInterpreter (addStream' settings name expr)
   case r of
     Left err   -> do putStrLn $ "Error: " Prelude.++ show err
                      error $ show err
@@ -290,16 +350,9 @@ addStream name expr = do
 -- interpreter context.
 --
 -- Observe that Interpreter () is an alias for InterpreterT IO ()
-addStream' :: String -> String -> HI.Interpreter Core.Spec
-addStream' name expr = do
-  HI.setImportsQ [ ("Prelude", Just "P")
-                 , ("Copilot.Language", Nothing)
-                 , ("Copilot.Language.Spec", Nothing)
-                 , ("Language.Copilot", Nothing)
-                 , ("Data.Functor.Identity", Nothing)
-                 , ("Control.Monad.Writer", Nothing)
-                 ]
-
+addStream' :: VisualSettings -> String -> String -> HI.Interpreter Core.Spec
+addStream' settings name expr = do
+  HI.setImportsQ (visualSettingsImports settings)
   let completeExpr = concat [ "observer "
                             , show name
                             , " ("

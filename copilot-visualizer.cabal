@@ -1,6 +1,6 @@
 cabal-version:       >=1.10
 name:                copilot-visualizer
-version:             4.2
+version:             4.4
 synopsis:            Visualizer for Copilot.
 description:
   Visualizer for Copilot.
@@ -32,12 +32,13 @@ source-repository head
     location:   https://github.com/Copilot-Language/copilot.git
     subdir:     copilot-visualizer
 
-executable copilot-live-backend
-  default-language:  Haskell2010
+library
 
-  main-is: Copilot/Live.hs
+  default-language:
+    Haskell2010
 
-  hs-source-dirs:    src
+  hs-source-dirs:
+    src
 
   ghc-options:
     -Wall
@@ -49,41 +50,18 @@ executable copilot-live-backend
     hint,
     pretty     >= 1.0   && < 1.2,
     ogma-extra >= 1.6.0 && < 1.7,
-
-    copilot-core        >= 4.2 && < 4.3,
-    copilot-interpreter >= 4.2 && < 4.3,
-    copilot-visualizer  >= 4.2 && < 4.3,
-    copilot-language,
-    copilot,
     text,
-    websockets >= 0.12.7
+    websockets >= 0.12.7,
 
-  other-modules:
-
-    Paths_copilot_visualizer
-
-library
-
-  default-language:  Haskell2010
-
-  hs-source-dirs:    src
-
-  ghc-options:
-    -Wall
-
-  build-depends:
-    base       >= 4.9   && < 5,
-    aeson,
-    filepath,
-    pretty     >= 1.0   && < 1.2,
-    ogma-extra >= 1.6.0 && < 1.7,
-
-    copilot-core        >= 4.2 && < 4.3,
-    copilot-interpreter >= 4.2 && < 4.3
+    copilot             >= 4.4 && < 4.5,
+    copilot-core        >= 4.4 && < 4.5,
+    copilot-interpreter >= 4.4 && < 4.5,
+    copilot-language    >= 4.4 && < 4.5
 
   exposed-modules:
 
-    Copilot.Visualize
+    Copilot.Visualize.Live
+    Copilot.Visualize.Tikz
 
   other-modules:
 
