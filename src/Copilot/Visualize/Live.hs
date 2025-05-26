@@ -41,17 +41,18 @@ module Copilot.Visualize.Live
   where
 
 -- External imports
-import           Control.Exception      (SomeException (..), handle)
-import qualified Copilot.Core           as Core
-import           Copilot.Interpret.Eval (ShowType (Haskell), eval)
-import           Copilot.Language       hiding (interpret, typeOf)
-import qualified Copilot.Visualize.Tikz as View
-import           Data.Aeson             (ToJSON (..), encode)
-import qualified Data.Text              as T
-import qualified Network.WebSockets     as WS
-import           Prelude                hiding (div, not, (++), (<), (>))
+import           Control.Exception              (SomeException (..), handle)
+import qualified Copilot.Core                   as Core
+import           Copilot.Interpret.Eval         (ShowType (Haskell), eval)
+import           Copilot.Language               hiding (interpret, typeOf)
+import           Copilot.Visualize.UntypedTrace (AppData, makeTraceEval)
+import           Data.Aeson                     (ToJSON (..), encode)
+import qualified Data.Text                      as T
+import qualified Network.WebSockets             as WS
+import           Prelude                        hiding (div, not, (++), (<),
+                                                 (>))
 import qualified Prelude
-import           Text.Read              (readMaybe)
+import           Text.Read                      (readMaybe)
 
 -- Internal imports
 import Copilot.Visualize.Dynamic
@@ -113,7 +114,7 @@ appInit settings spec conn = handle appException $ do
 
     -- Communicate the current values of the trace, in JSON, via the web
     -- socket.
-    let appData = makeTraceEval (simSteps simData) (simSpec simData)
+    let appData = mkAppData (simSteps simData) (simSpec simData)
     let samples = encode $ toJSON appData
     WS.sendTextData conn samples
 
@@ -142,7 +143,7 @@ appMainLoop settings conn simData = do
   simData' <- maybe (pure simData) (simStep simulationSettings simData) cmdM
 
   -- Communicate the current values of the trace, in JSON, via the web socket.
-  let appData = makeTraceEval (simSteps simData') (simSpec simData')
+  let appData = mkAppData (simSteps simData') (simSpec simData')
       samples = encode $ toJSON appData
   WS.sendTextData conn samples
 
@@ -151,6 +152,6 @@ appMainLoop settings conn simData = do
 -- * Auxiliary functions
 
 -- | Obtain the trace data from a Copilot spec for a number of steps.
-makeTraceEval :: Int -> Core.Spec -> View.AppData
-makeTraceEval numSteps spec' =
-  View.makeTraceEval numSteps spec' (eval Haskell numSteps spec')
+mkAppData :: Int -> Core.Spec -> AppData
+mkAppData numSteps spec' =
+  makeTraceEval numSteps spec' (eval Haskell numSteps spec')

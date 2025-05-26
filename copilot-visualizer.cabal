@@ -22,8 +22,8 @@ stability:           Experimental
 category:            Language, Embedded
 build-type:          Simple
 extra-source-files:  README.md, CHANGELOG
-data-files:          data/tikz.latex
-                     data/timeline.html
+data-files:          data/tikz/tikz.latex
+                     data/static_html/index.html
 
 x-curation: uncurated
 
@@ -61,10 +61,11 @@ library
   exposed-modules:
 
     Copilot.Visualize.Live
-    Copilot.Visualize.Tikz
+    Copilot.Visualize.Static
 
   other-modules:
 
     Copilot.Visualize.Dynamic
-    Copilot.Visualize.Trace
+    Copilot.Visualize.TypedTrace
+    Copilot.Visualize.UntypedTrace
     Paths_copilot_visualizer

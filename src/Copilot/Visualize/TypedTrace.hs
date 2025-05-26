@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | Read and modify traces of specifications.
-module Copilot.Visualize.Trace
+module Copilot.Visualize.TypedTrace
     ( extractTrace
     , updateWithTrace
     , Trace

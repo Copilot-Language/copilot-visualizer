@@ -1,41 +1,33 @@
 {-# LANGUAGE DeriveGeneric #-}
--- | Graphical visualization of Copilot specifications.
+-- | Abstract representation of a trace as a series named streams with their
+-- values, together with functions needed to convert a 'Spec' into a trace.
 --
--- This module contains an abstract representation of a trace as a series
--- named streams with their values, together with functions needed to
--- convert a 'Spec' into a trace.
---
--- The helper function 'makeTrace' expands a latex file that produces the
--- trace visualization as a figure.
-module Copilot.Visualize.Tikz
+-- This trace is flat (untyped). Information about the types is captured
+-- using boolean flags. This kind of trace is most useful to render values
+-- on in logicless templates, since they don't have the capability to examine
+-- the Haskell types.
+module Copilot.Visualize.UntypedTrace
     ( AppData(..)
     , Trace
     , TraceElem(..)
     , TraceValue(..)
-
-    , makeTrace
     , makeTraceEval
     )
   where
 
 -- External imports
-import Data.Aeson             (ToJSON (..))
-import Data.Bifunctor         (second)
-import Data.List              (find, transpose)
-import Data.Maybe             (isJust, isNothing)
-import GHC.Generics           (Generic)
-import System.Directory.Extra (copyTemplate)
-import System.FilePath        ((</>))
-import Text.Printf            (printf)
-import Text.Read              (readMaybe)
+import Data.Aeson     (ToJSON (..))
+import Data.Bifunctor (second)
+import Data.List      (find, transpose)
+import Data.Maybe     (isJust, isNothing)
+import GHC.Generics   (Generic)
+import Text.Printf    (printf)
+import Text.Read      (readMaybe)
 
 -- External imports: Copilot
 import Copilot.Core           (Spec (..), triggerArgs, triggerName)
-import Copilot.Interpret.Eval (ExecTrace, Output, ShowType (Haskell), eval,
-                               interpObservers, interpTriggers)
-
--- Internal imports
-import Paths_copilot_visualizer (getDataDir)
+import Copilot.Interpret.Eval (ExecTrace, Output, interpObservers,
+                               interpTriggers)
 
 -- * Abstract representation of a trace
 
@@ -73,16 +65,6 @@ data TraceValue = TraceValue
   deriving (Generic, Show)
 
 instance ToJSON TraceValue
-
--- | Generate a visualization of a specification for a given number of steps.
-makeTrace :: Int   -- ^ Number of steps to interpret.
-          -> Spec  -- ^ Specification to interpret.
-          -> IO ()
-makeTrace k spec = do
-  dir <- getDataDir
-  let f = dir </> "data"
-  let subs = toJSON $ makeTraceEval k spec $ eval Haskell k spec
-  copyTemplate f subs "target"
 
 -- | Generate an abstract representation of a trace of a specification
 -- interpreted for a given number of steps.

@@ -44,7 +44,7 @@ import           Prelude                      hiding (div, not, (++), (<), (>))
 import qualified Prelude
 
 -- Internal imports
-import Copilot.Visualize.Trace
+import Copilot.Visualize.TypedTrace
 
 data SimData = SimData
   { simSteps  :: Int
