@@ -39,20 +39,18 @@ module Copilot.Visualize.Live
     )
   where
 
-import           Control.Concurrent.MVar (MVar, newMVar, putMVar, takeMVar)
-import           Control.Exception       (SomeException (..), handle)
-import           Control.Monad           (forever)
-import qualified Copilot.Core            as Core
-import           Copilot.Interpret.Eval  (ShowType (Haskell), eval)
-import           Copilot.Language        hiding (interpret, typeOf)
-import qualified Copilot.Visualize.Tikz  as View
-import           Data.Aeson              (ToJSON (..), encode)
-import qualified Data.Text               as T
-import           GHC.Generics            (Generic)
-import qualified Network.WebSockets      as WS
-import           Prelude                 hiding (div, not, (++), (<), (>))
+import           Control.Exception      (SomeException (..), handle)
+import qualified Copilot.Core           as Core
+import           Copilot.Interpret.Eval (ShowType (Haskell), eval)
+import           Copilot.Language       hiding (interpret, typeOf)
+import qualified Copilot.Visualize.Tikz as View
+import           Data.Aeson             (ToJSON (..), encode)
+import qualified Data.Text              as T
+import           GHC.Generics           (Generic)
+import qualified Network.WebSockets     as WS
+import           Prelude                hiding (div, not, (++), (<), (>))
 import qualified Prelude
-import           Text.Read               (readMaybe)
+import           Text.Read              (readMaybe)
 
 import Copilot.Visualize.Dynamic
 
@@ -117,7 +115,6 @@ app settings spec pending = do
 appInit :: VisualSettings -> String -> WS.Connection -> IO ()
 appInit settings spec conn = handle appException $ do
     simData  <- simInit (visualSettingsSimulation settings) spec
-    simDataV <- newMVar simData
 
     -- Communicate the current values of the trace to the user interface.
     let appData = makeTraceEval' (simSteps simData) (simSpec simData)
@@ -125,7 +122,7 @@ appInit settings spec conn = handle appException $ do
     WS.sendTextData conn samples
 
     -- Start the application loop.
-    appMainLoop settings conn simDataV
+    appMainLoop settings conn simData
 
   where
 
@@ -136,9 +133,9 @@ appInit settings spec conn = handle appException $ do
 
 appMainLoop :: VisualSettings
             -> WS.Connection
-            -> MVar SimData
+            -> SimData
             -> IO ()
-appMainLoop settings conn simDataV = forever $ do
+appMainLoop settings conn simData = do
   let simulationSettings = visualSettingsSimulation settings
 
   msg <- T.unpack <$> WS.receiveData conn
@@ -146,15 +143,13 @@ appMainLoop settings conn simDataV = forever $ do
   let pair :: Maybe (Command, String)
       pair = readMaybe msg
 
-  simData  <- takeMVar simDataV
   simData' <- simStep simulationSettings simData msg pair
-
-  -- Update the mvar with the new number of steps and spec.
-  putMVar simDataV simData'
 
   let appData = makeTraceEval' (simSteps simData') (simSpec simData')
       samples = encode $ toJSON $ allSamples appData
   WS.sendTextData conn samples
+
+  appMainLoop settings conn simData'
 
 makeTraceEval' :: Int -> Core.Spec -> View.AppData
 makeTraceEval' numSteps spec' =
