@@ -1,7 +1,6 @@
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE OverloadedStrings #-}
 -- | Run the interactive Copilot visualizer on a websocket.
 --
 -- This visualizer allows you to add new streams to the visualization. In
@@ -56,7 +55,6 @@ import qualified Prelude
 import           Text.Read               (readMaybe)
 
 import Copilot.Visualize.Dynamic
-import Copilot.Visualize.Trace
 
 -- | Open a websocket to listen to commands from the web visualization and
 -- communicate results.
@@ -79,11 +77,7 @@ visualizeWith settings spec = do
 
 -- Settings used to customize the code generated.
 data VisualSettings = VisualSettings
-  { visualSettingsInitialSteps :: Int
-                                  -- ^ Number of simulation steps to run
-                                  -- initially.
-
-  , visualSettingsHost         :: String
+  { visualSettingsHost         :: String
                                   -- ^ Host interface to listen to. Use
                                   -- "127.0.0.1" to listen at localhost.
 
@@ -98,10 +92,10 @@ data VisualSettings = VisualSettings
 -- 9160.
 mkDefaultVisualSettings :: VisualSettings
 mkDefaultVisualSettings = VisualSettings
-  { visualSettingsInitialSteps = 3
-  , visualSettingsHost         = "127.0.0.1"
+  { visualSettingsHost         = "127.0.0.1"
   , visualSettingsPort         = 9160
   , visualSettingsSimulation   = SimulationSettings
+                                   3
                                    [ ("Control.Monad.Writer",  Nothing)
                                    , ("Copilot.Language",      Nothing)
                                    , ("Copilot.Language.Spec", Nothing)
@@ -122,25 +116,16 @@ app settings spec pending = do
 -- | Initialize the backend.
 appInit :: VisualSettings -> String -> WS.Connection -> IO ()
 appInit settings spec conn = handle appException $ do
-    -- Save the literal (string) spec, so that it can be modified later.
-    specV <- newMVar spec
-
-    -- Load the spec, and save it so that it doesn't need to be reloaded if it
-    -- doesn't change.
-    let simulationSettings = visualSettingsSimulation settings
-    spec' <- readSpec simulationSettings spec
-    let numSteps = visualSettingsInitialSteps settings
-    v <- newMVar (numSteps, spec')
-
-    -- Obtain the static values of the trace.
-    let appData = makeTraceEval' numSteps spec'
+    simData  <- simInit (visualSettingsSimulation settings) spec
+    simDataV <- newMVar simData
 
     -- Communicate the current values of the trace to the user interface.
+    let appData = makeTraceEval' (simSteps simData) (simSpec simData)
     let samples = encode $ toJSON $ allSamples appData
     WS.sendTextData conn samples
 
     -- Start the application loop.
-    appMainLoop settings conn v specV
+    appMainLoop settings conn simDataV
 
   where
 
@@ -151,10 +136,9 @@ appInit settings spec conn = handle appException $ do
 
 appMainLoop :: VisualSettings
             -> WS.Connection
-            -> MVar (Int, Core.Spec)
-            -> MVar String
+            -> MVar SimData
             -> IO ()
-appMainLoop settings conn v specV = forever $ do
+appMainLoop settings conn simDataV = forever $ do
   let simulationSettings = visualSettingsSimulation settings
 
   msg <- T.unpack <$> WS.receiveData conn
@@ -162,46 +146,13 @@ appMainLoop settings conn v specV = forever $ do
   let pair :: Maybe (Command, String)
       pair = readMaybe msg
 
-  (numSteps, spec') <- takeMVar v
-
-  -- Update the number of steps based on the input command received.
-  let numSteps' = case msg of
-                    "StepUp"   -> numSteps + 1
-                    "StepDown" -> numSteps - 1
-                    _          -> numSteps
-
-  -- Update the spec based on the input command received.
-  spec'' <- case (msg, pair) of
-
-              ("StepUp",   _) -> pure spec'
-
-              ("StepDown", _) -> pure spec'
-
-              (_, Just (AddStream name expr, _)) -> do
-                specS <- takeMVar specV
-                let specN = specS Prelude.++ "\n" Prelude.++
-                            "      " Prelude.++ completeExpr
-                    completeExpr = concat [ "observer "
-                                          , show name
-                                          , " ("
-                                          , expr
-                                          , ")"
-                                          ]
-                let trace = extractTrace spec'
-                spec2 <- readSpec (simulationSettings) specN
-                putMVar specV specN
-                let spec3 = updateWithTrace trace spec2
-                return spec3
-
-              (_, Just (command, name)) ->
-                apply simulationSettings spec' name command
-
-              _ -> pure spec'
+  simData  <- takeMVar simDataV
+  simData' <- simStep simulationSettings simData msg pair
 
   -- Update the mvar with the new number of steps and spec.
-  putMVar v (numSteps', spec'')
+  putMVar simDataV simData'
 
-  let appData = makeTraceEval' numSteps' spec''
+  let appData = makeTraceEval' (simSteps simData') (simSpec simData')
       samples = encode $ toJSON $ allSamples appData
   WS.sendTextData conn samples
 

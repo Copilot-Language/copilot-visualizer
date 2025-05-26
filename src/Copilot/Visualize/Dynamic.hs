@@ -35,8 +35,69 @@ import qualified Language.Haskell.Interpreter as HI
 import           Prelude                      hiding (div, not, (++), (<), (>))
 import qualified Prelude
 
+import Copilot.Visualize.Trace
+
+data SimData = SimData
+  { simSteps  :: Int
+  , simSpec   :: Core.Spec
+  , simString :: String
+  }
+
+simInit :: SimulationSettings -> String -> IO SimData
+simInit simulationSettings spec = do
+  -- Load the spec, and save it so that it doesn't need to be reloaded if it
+  -- doesn't change.
+  let numSteps = simulationSettingsInitialSteps simulationSettings
+  spec' <- readSpec simulationSettings spec
+  let simData = SimData numSteps spec' spec
+  return simData
+
+simStep :: SimulationSettings
+        -> SimData
+        -> String
+        -> Maybe (Command, String)
+        -> IO SimData
+simStep simulationSettings simData msg pair = do
+  let SimData numSteps spec' specS = simData
+
+  -- Update the number of steps based on the input command received.
+  let numSteps' = case msg of
+                    "StepUp"   -> numSteps + 1
+                    "StepDown" -> numSteps - 1
+                    _          -> numSteps
+
+  -- Update the spec based on the input command received.
+  (spec'', specS') <- case (msg, pair) of
+
+     ("StepUp",   _) -> pure (spec', specS)
+
+     ("StepDown", _) -> pure (spec', specS)
+
+     (_, Just (AddStream name expr, _)) -> do
+
+       let specN = specS Prelude.++ "\n" Prelude.++
+                   "      " Prelude.++ completeExpr
+           completeExpr = concat [ "observer "
+                                 , show name
+                                 , " ("
+                                 , expr
+                                 , ")"
+                                 ]
+       let trace = extractTrace spec'
+       spec2 <- readSpec simulationSettings specN
+       let spec3 = updateWithTrace trace spec2
+       return (spec3, specN)
+
+     (_, Just (command, name)) ->
+       (,) <$> apply simulationSettings spec' name command <*> pure specS
+
+     _ -> pure (spec', specS)
+
+  return (SimData numSteps' spec'' specS')
+
 data SimulationSettings = SimulationSettings
-  { simulationSettingsImports :: [(String, Maybe String)]
+  { simulationSettingsInitialSteps :: Int
+  , simulationSettingsImports      :: [(String, Maybe String)]
   }
 
 -- * Commands
