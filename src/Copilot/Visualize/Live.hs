@@ -39,6 +39,7 @@ module Copilot.Visualize.Live
     )
   where
 
+-- External imports
 import           Control.Exception      (SomeException (..), handle)
 import qualified Copilot.Core           as Core
 import           Copilot.Interpret.Eval (ShowType (Haskell), eval)
@@ -52,6 +53,7 @@ import           Prelude                hiding (div, not, (++), (<), (>))
 import qualified Prelude
 import           Text.Read              (readMaybe)
 
+-- Internal imports
 import Copilot.Visualize.Dynamic
 
 -- | Open a websocket to listen to commands from the web visualization and
@@ -75,15 +77,15 @@ visualizeWith settings spec = do
 
 -- Settings used to customize the code generated.
 data VisualSettings = VisualSettings
-  { visualSettingsHost         :: String
-                                  -- ^ Host interface to listen to. Use
-                                  -- "127.0.0.1" to listen at localhost.
+  { visualSettingsHost       :: String
+                                -- ^ Host interface to listen to. Use
+                                -- "127.0.0.1" to listen at localhost.
 
-  , visualSettingsPort         :: Int
-                                  -- ^ Port to listen to.
+  , visualSettingsPort       :: Int
+                                -- ^ Port to listen to.
 
-  , visualSettingsSimulation   :: SimulationSettings
-                                  -- ^ Settings for the simulation.
+  , visualSettingsSimulation :: SimulationSettings
+                                -- ^ Settings for the simulation.
   }
 
 -- | Default settings that simulates 3 steps and listens on localhost at port
