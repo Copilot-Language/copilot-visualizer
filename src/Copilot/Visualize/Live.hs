@@ -108,11 +108,13 @@ app settings spec pending = do
 -- | Initialize the backend.
 appInit :: VisualSettings -> String -> WS.Connection -> IO ()
 appInit settings spec conn = handle appException $ do
+    -- Initialize the simulation.
     simData  <- simInit (visualSettingsSimulation settings) spec
 
-    -- Communicate the current values of the trace to the user interface.
-    let appData = makeTraceEval' (simSteps simData) (simSpec simData)
-    let samples = encode $ toJSON $ allSamples appData
+    -- Communicate the current values of the trace, in JSON, via the web
+    -- socket.
+    let appData = makeTraceEval (simSteps simData) (simSpec simData)
+    let samples = encode $ toJSON appData
     WS.sendTextData conn samples
 
     -- Start the application loop.
@@ -125,29 +127,26 @@ appInit settings spec conn = handle appException $ do
       putStrLn $ "Error:" Prelude.++ show e
       error $ show e
 
+-- | Run the main application, repeatedly reading commands from a web socket
+-- and returning results via the same web socket.
 appMainLoop :: VisualSettings
             -> WS.Connection
             -> SimData
             -> IO ()
 appMainLoop settings conn simData = do
+  -- Read a command from the web socket.
+  cmdM <- readMaybe . T.unpack <$> WS.receiveData conn
+
+  -- Run a simulation step, if a command has been received.
   let simulationSettings = visualSettingsSimulation settings
+  simData' <- maybe (pure simData) (simStep simulationSettings simData) cmdM
 
-  msg <- T.unpack <$> WS.receiveData conn
-
-  let pair :: Maybe (Command, String)
-      pair = readMaybe msg
-
-  simData' <- simStep simulationSettings simData msg pair
-
-  let appData = makeTraceEval' (simSteps simData') (simSpec simData')
-      samples = encode $ toJSON $ allSamples appData
+  -- Communicate the current values of the trace, in JSON, via the web socket.
+  let appData = makeTraceEval (simSteps simData') (simSpec simData')
+      samples = encode $ toJSON appData
   WS.sendTextData conn samples
 
   appMainLoop settings conn simData'
-
-makeTraceEval' :: Int -> Core.Spec -> View.AppData
-makeTraceEval' numSteps spec' =
-  View.makeTraceEval numSteps spec' (eval Haskell numSteps spec')
 
 -- | Data to communicate to the client.
 data Data = Data
@@ -178,20 +177,25 @@ data Sample = Sample
 
 instance ToJSON Sample
 
--- | Obtain all samples from a visualization.
-allSamples :: View.AppData -> Data
-allSamples appData = Data
-  { adLastSample = View.adLastSample appData
-  , adTraceElems = map toTraceElem (View.adTraceElems appData)
-  }
+-- | Obtain the visualization data from a Copilot spec for a number of steps.
+makeTraceEval :: Int -> Core.Spec -> Data
+makeTraceEval numSteps spec' = allSamples $
+    View.makeTraceEval numSteps spec' (eval Haskell numSteps spec')
+  where
+    -- Obtain all samples from a visualization.
+    allSamples :: View.AppData -> Data
+    allSamples appData = Data
+      { adLastSample = View.adLastSample appData
+      , adTraceElems = map toTraceElem (View.adTraceElems appData)
+      }
 
--- | Convert a view trace element into a visualization trace element.
-toTraceElem :: View.TraceElem -> TraceElem
-toTraceElem te = TraceElem
-  { teName      = View.teName te
-  , teIsBoolean = View.teIsBoolean te
-  , teValues    = zipWith
-                    (\i v -> Sample i (View.tvValue v) 1)
-                    [0..]
-                    (View.teValues te)
-  }
+    -- Convert a view trace element into a visualization trace element.
+    toTraceElem :: View.TraceElem -> TraceElem
+    toTraceElem te = TraceElem
+      { teName      = View.teName te
+      , teIsBoolean = View.teIsBoolean te
+      , teValues    = zipWith
+                        (\i v -> Sample i (View.tvValue v) 1)
+                        [0..]
+                        (View.teValues te)
+      }

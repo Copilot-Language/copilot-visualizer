@@ -54,54 +54,36 @@ simInit simulationSettings spec = do
   let simData = SimData numSteps spec' spec
   return simData
 
+-- | Update the spec based on the input command received.
 simStep :: SimulationSettings
         -> SimData
-        -> String
-        -> Maybe (Command, String)
+        -> (Command, String)
         -> IO SimData
-simStep simulationSettings simData msg pair = do
-  let SimData numSteps spec' specS = simData
+simStep _ simData (StepUp, _) =
+  pure simData { simSteps = simSteps simData + 1 }
 
-  -- Update the number of steps based on the input command received.
-  let numSteps' = case msg of
-                    "StepUp"   -> numSteps + 1
-                    "StepDown" -> numSteps - 1
-                    _          -> numSteps
+simStep _ simData (StepDown, _) =
+  pure simData { simSteps = simSteps simData + 1 }
 
-  -- Update the spec based on the input command received.
-  (spec'', specS') <- case (msg, pair) of
+simStep simulationSettings simData (AddStream name expr, _) = do
+  let specN = concat [ simString simData, "\n", "      ", completeExpr]
 
-     ("StepUp",   _) -> pure (spec', specS)
+      completeExpr = concat [ "observer ", show name, " (", expr, ")" ]
 
-     ("StepDown", _) -> pure (spec', specS)
+  let trace = extractTrace $ simSpec simData
+  spec2 <- readSpec simulationSettings specN
+  let spec3 = updateWithTrace trace spec2
 
-     (_, Just (AddStream name expr, _)) -> do
+  pure simData { simSpec = spec3, simString = specN }
 
-       let specN = specS Prelude.++ "\n" Prelude.++
-                   "      " Prelude.++ completeExpr
-           completeExpr = concat [ "observer "
-                                 , show name
-                                 , " ("
-                                 , expr
-                                 , ")"
-                                 ]
-       let trace = extractTrace spec'
-       spec2 <- readSpec simulationSettings specN
-       let spec3 = updateWithTrace trace spec2
-       return (spec3, specN)
-
-     (_, Just (command, name)) ->
-       (,) <$> apply simulationSettings spec' name command <*> pure specS
-
-     _ -> pure (spec', specS)
-
-  return (SimData numSteps' spec'' specS')
+simStep simulationSettings simData (command, name) = do
+  spec' <- apply simulationSettings (simSpec simData) name command
+  pure simData { simSpec = spec' }
 
 data SimulationSettings = SimulationSettings
   { simulationSettingsInitialSteps :: Int
   , simulationSettingsImports      :: [(String, Maybe String)]
   }
-
 
 mkDefaultSimulationSettings :: SimulationSettings
 mkDefaultSimulationSettings =
@@ -136,7 +118,9 @@ loadSpec settings spec = do
   HI.liftIO $ reify spec'
 
 -- | Possible commands to affect a visualization.
-data Command = Up Int
+data Command = StepUp
+             | StepDown
+             | Up Int
              | Down Int
              | AddStream String String
              | Noop
@@ -177,25 +161,25 @@ updateTrigger name command (Core.Trigger i e es) = Core.Trigger i e' es'
 -- | Apply a command to a core expression.
 updateExpr :: String -> Command -> Core.Expr a -> Core.Expr a
 updateExpr name command expr = case expr of
-  (Core.ExternVar ty nameE vs)
+  Core.ExternVar ty nameE vs
     | nameE Prelude.== name
     -> Core.ExternVar ty nameE (updateValues vs ty command)
 
     | otherwise
     -> expr
 
-  (Core.Op1 op expr1) ->
-     Core.Op1 op (updateExpr name command expr1)
+  Core.Op1 op expr1 ->
+    Core.Op1 op (updateExpr name command expr1)
 
-  (Core.Op2 op expr1 expr2) ->
-     Core.Op2 op (updateExpr name command expr1) (updateExpr name command expr2)
+  Core.Op2 op expr1 expr2 ->
+    Core.Op2 op (updateExpr name command expr1) (updateExpr name command expr2)
 
-  (Core.Op3 op expr1 expr2 expr3) ->
-     Core.Op3
-       op
-       (updateExpr name command expr1)
-       (updateExpr name command expr2)
-       (updateExpr name command expr3)
+  Core.Op3 op expr1 expr2 expr3 ->
+    Core.Op3
+      op
+      (updateExpr name command expr1)
+      (updateExpr name command expr2)
+      (updateExpr name command expr3)
 
   _ -> expr
 
