@@ -35,6 +35,8 @@ module Copilot.Visualize.Live
     , visualizeWith
     , VisualSettings(..)
     , mkDefaultVisualSettings
+    , SimulationSettings(..)
+    , mkDefaultSimulationSettings
     )
   where
 
