@@ -5,6 +5,8 @@
 module Copilot.Visualize.Trace
     ( extractTrace
     , updateWithTrace
+    , Trace
+    , UValues(..)
     )
   where
 
