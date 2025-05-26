@@ -9,6 +9,7 @@
 -- trace visualization as a figure.
 module Copilot.Visualize.Tikz
     ( AppData(..)
+    , Trace
     , TraceElem(..)
     , TraceValue(..)
 
