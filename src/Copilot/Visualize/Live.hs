@@ -92,17 +92,17 @@ data VisualSettings = VisualSettings
 -- 9160.
 mkDefaultVisualSettings :: VisualSettings
 mkDefaultVisualSettings = VisualSettings
-  { visualSettingsHost         = "127.0.0.1"
-  , visualSettingsPort         = 9160
-  , visualSettingsSimulation   = SimulationSettings
-                                   3
-                                   [ ("Control.Monad.Writer",  Nothing)
-                                   , ("Copilot.Language",      Nothing)
-                                   , ("Copilot.Language.Spec", Nothing)
-                                   , ("Data.Functor.Identity", Nothing)
-                                   , ("Language.Copilot",      Nothing)
-                                   , ("Prelude",               Just "P")
-                                   ]
+  { visualSettingsHost       = "127.0.0.1"
+  , visualSettingsPort       = 9160
+  , visualSettingsSimulation = SimulationSettings
+                                 3
+                                 [ ("Control.Monad.Writer",  Nothing)
+                                 , ("Copilot.Language",      Nothing)
+                                 , ("Copilot.Language.Spec", Nothing)
+                                 , ("Data.Functor.Identity", Nothing)
+                                 , ("Language.Copilot",      Nothing)
+                                 , ("Prelude",               Just "P")
+                                 ]
   }
 
 -- * Server
