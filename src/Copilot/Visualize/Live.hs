@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedStrings #-}
--- | Run the interactive Copilot visualizer on a websocket.
+-- | Interact with a running Copilot simulation via a websocket.
 --
 -- This visualizer allows you to add new streams to the visualization. In
 -- order to do so, it's necessary for the visualizer to have access to the
