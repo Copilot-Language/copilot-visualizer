@@ -26,7 +26,14 @@
 -- @
 --
 -- The imports are predefined.
-module Copilot.Visualize.Dynamic where
+module Copilot.Visualize.Dynamic
+    ( simInit
+    , simStep
+    , SimulationSettings(..)
+    , mkDefaultSimulationSettings
+    , SimData(..)
+    )
+  where
 
 -- External imports
 import qualified Copilot.Core                 as Core
