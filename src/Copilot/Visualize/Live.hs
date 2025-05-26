@@ -47,7 +47,6 @@ import           Copilot.Language       hiding (interpret, typeOf)
 import qualified Copilot.Visualize.Tikz as View
 import           Data.Aeson             (ToJSON (..), encode)
 import qualified Data.Text              as T
-import           GHC.Generics           (Generic)
 import qualified Network.WebSockets     as WS
 import           Prelude                hiding (div, not, (++), (<), (>))
 import qualified Prelude
@@ -148,54 +147,7 @@ appMainLoop settings conn simData = do
 
   appMainLoop settings conn simData'
 
--- | Data to communicate to the client.
-data Data = Data
-    { adLastSample :: Int
-    , adTraceElems :: [TraceElem]
-    }
-  deriving (Generic)
-
-instance ToJSON Data
-
--- | Series of samples associated to a stream.
-data TraceElem = TraceElem
-    { teName      :: String
-    , teIsBoolean :: Bool
-    , teValues    :: [Sample]
-    }
-  deriving (Generic)
-
-instance ToJSON TraceElem
-
--- | Sample containing a time, value and duration.
-data Sample = Sample
-    { time     :: Int
-    , value    :: String
-    , duration :: Float
-    }
-  deriving (Generic)
-
-instance ToJSON Sample
-
 -- | Obtain the visualization data from a Copilot spec for a number of steps.
-makeTraceEval :: Int -> Core.Spec -> Data
-makeTraceEval numSteps spec' = allSamples $
-    View.makeTraceEval numSteps spec' (eval Haskell numSteps spec')
-  where
-    -- Obtain all samples from a visualization.
-    allSamples :: View.AppData -> Data
-    allSamples appData = Data
-      { adLastSample = View.adLastSample appData
-      , adTraceElems = map toTraceElem (View.adTraceElems appData)
-      }
-
-    -- Convert a view trace element into a visualization trace element.
-    toTraceElem :: View.TraceElem -> TraceElem
-    toTraceElem te = TraceElem
-      { teName      = View.teName te
-      , teIsBoolean = View.teIsBoolean te
-      , teValues    = zipWith
-                        (\i v -> Sample i (View.tvValue v) 1)
-                        [0..]
-                        (View.teValues te)
-      }
+makeTraceEval :: Int -> Core.Spec -> View.AppData
+makeTraceEval numSteps spec' =
+  View.makeTraceEval numSteps spec' (eval Haskell numSteps spec')

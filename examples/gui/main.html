@@ -98,8 +98,8 @@
       // Process numeric data to include duration and y-positions
       function processNumericData(data)
       {
-        const maxValue = Math.max(...data.map(d => d.value));
-        const minValue = Math.min(...data.map(d => d.value));
+        const maxValue = Math.max(...data.map(d => d.tvValue));
+        const minValue = Math.min(...data.map(d => d.tvValue));
         const yScale = d3.scaleLinear()
                          .domain([minValue, maxValue])
                          .range([rowHeight * 0.8, rowHeight * 0.2]);
@@ -107,7 +107,7 @@
         return data.map((d, i) => ({
           ...d,
           duration: i < data.length - 1 ? data[i + 1].time - d.time : numSteps + 1 - d.time,
-          y: yScale(d.value)
+          y: yScale(d.tvValue)
         }));
       }
 
@@ -152,25 +152,27 @@
 
         const hexHeight = rowHeight * 0.8;
 
+        time = 0;
+
         // Create hexagon groups
         const hexGroups = rowG.selectAll("g")
                               .data(data)
                               .enter()
                               .append("g")
-                              .attr("transform", d => `translate(${xScale(d.time)},${rowHeight * 0.1})`);
+                              .attr("transform", d => `translate(${xScale(time++)},${rowHeight * 0.1})`);
 
         // Add hexagons
         hexGroups.append("path")
                  .attr("class", "hexagon")
-                 .attr("d", d => hexagonPath(xScale(d.duration) - xScale(0), hexHeight))
+                 .attr("d", d => hexagonPath(xScale(1) - xScale(0), hexHeight))
                  .attr("fill", "#f7fbff");
 
         // Add value text
         hexGroups.append("text")
                  .attr("class", "value-text")
-                 .attr("x", d => (xScale(d.duration) - xScale(0)) / 2)
+                 .attr("x", d => (xScale(1) - xScale(0)) / 2)
                  .attr("y", hexHeight / 2)
-                 .text(d => d.value);
+                 .text(d => d.tvValue);
       }
 
       // Draw boolean rows with colored backgrounds
@@ -180,17 +182,19 @@
                         .attr("class", "value_list")
                         .attr("transform", `translate(0,${rowIndex * rowHeight})`);
 
+        time = 0;
+
         // Draw colored backgrounds
         rowG.selectAll("rect")
             .data(data)
             .enter()
             .append("rect")
             .attr("class", "bool-background")
-            .attr("x", d => xScale(d.time))
+            .attr("x", d => xScale(time++))
             .attr("y", 0)
-            .attr("width", d => xScale(d.duration) - xScale(0))
+            .attr("width", d => xScale(1) - xScale(0))
             .attr("height", rowHeight)
-            .attr("fill", d => d.value == "true" ? "#90EE90" : "#FFB6C1");
+            .attr("fill", d => d.tvValue == "true" ? "#90EE90" : "#FFB6C1");
       }
 
       function redraw()
