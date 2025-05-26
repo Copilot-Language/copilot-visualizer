@@ -25,13 +25,14 @@ import Copilot.Visualize.UntypedTrace (makeTraceEval)
 import Paths_copilot_visualizer       (getDataDir)
 
 -- | Generate a visualization of a specification for a given number of steps.
-makeTrace :: Int     -- ^ Number of steps to interpret.
-          -> Spec    -- ^ Specification to interpret.
-          -> String  -- ^ Base used to expand the static file (i.e., @"tikz"@,
-                     -- @"static_html"@).
+makeTrace :: Int      -- ^ Number of steps to interpret.
+          -> Spec     -- ^ Specification to interpret.
+          -> String   -- ^ Base used to expand the static file (i.e., @"tikz"@,
+                      -- @"static_html"@).
+          -> FilePath
           -> IO ()
-makeTrace k spec base = do
+makeTrace k spec base target = do
   dir <- getDataDir
   let f = dir </> "data" </> base
   let subs = toJSON $ makeTraceEval k spec $ eval Haskell k spec
-  copyTemplate f subs "target"
+  copyTemplate f subs target
