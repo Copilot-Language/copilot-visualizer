@@ -1,4 +1,4 @@
-cabal-version:       >=1.10
+cabal-version:       >= 1.10
 name:                copilot-visualizer
 version:             4.4
 synopsis:            Visualizer for Copilot.
@@ -21,7 +21,11 @@ bug-reports:         https://github.com/Copilot-Language/copilot/issues
 stability:           Experimental
 category:            Language, Embedded
 build-type:          Simple
-extra-source-files:  README.md, CHANGELOG
+extra-source-files:  README.md
+                     CHANGELOG
+                     examples/gui/Main.hs
+                     examples/gui/main.html
+                     examples/tikz/Heater.hs
 data-files:          data/tikz/tikz.latex
                      data/static_html/index.html
 
