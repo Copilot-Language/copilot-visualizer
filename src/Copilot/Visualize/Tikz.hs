@@ -22,7 +22,7 @@ module Copilot.Visualize.Tikz
 import Data.Aeson             (ToJSON (..))
 import Data.Bifunctor         (second)
 import Data.List              (find, transpose)
-import Data.Maybe             (fromMaybe, isJust, isNothing)
+import Data.Maybe             (isJust, isNothing)
 import GHC.Generics           (Generic)
 import System.Directory.Extra (copyTemplate)
 import System.FilePath        ((</>))
