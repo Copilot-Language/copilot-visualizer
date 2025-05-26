@@ -87,11 +87,14 @@ simStep simulationSettings simData (command, name) = do
   spec' <- apply simulationSettings (simSpec simData) name command
   pure simData { simSpec = spec' }
 
+-- | Settings used for a simulation.
 data SimulationSettings = SimulationSettings
   { simulationSettingsInitialSteps :: Int
   , simulationSettingsImports      :: [(String, Maybe String)]
   }
 
+-- | Default settings that simulates 3 steps and provides default imports of
+-- the main Copilot modules.
 mkDefaultSimulationSettings :: SimulationSettings
 mkDefaultSimulationSettings =
   SimulationSettings
