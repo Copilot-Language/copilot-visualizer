@@ -28,6 +28,7 @@
 -- The imports are predefined.
 module Copilot.Visualize.Dynamic where
 
+-- External imports
 import qualified Copilot.Core                 as Core
 import           Copilot.Language             hiding (interpret, typeOf)
 import           Language.Copilot             hiding (interpret, typeOf)
@@ -35,6 +36,7 @@ import qualified Language.Haskell.Interpreter as HI
 import           Prelude                      hiding (div, not, (++), (<), (>))
 import qualified Prelude
 
+-- Internal imports
 import Copilot.Visualize.Trace
 
 data SimData = SimData
@@ -99,6 +101,19 @@ data SimulationSettings = SimulationSettings
   { simulationSettingsInitialSteps :: Int
   , simulationSettingsImports      :: [(String, Maybe String)]
   }
+
+
+mkDefaultSimulationSettings :: SimulationSettings
+mkDefaultSimulationSettings =
+  SimulationSettings
+    3
+    [ ("Control.Monad.Writer",  Nothing)
+    , ("Copilot.Language",      Nothing)
+    , ("Copilot.Language.Spec", Nothing)
+    , ("Data.Functor.Identity", Nothing)
+    , ("Language.Copilot",      Nothing)
+    , ("Prelude",               Just "P")
+    ]
 
 -- * Commands
 
