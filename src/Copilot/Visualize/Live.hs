@@ -74,7 +74,7 @@ visualizeWith settings spec = do
     (visualSettingsPort settings)
     (app settings spec)
 
--- Settings used to customize the code generated.
+-- | Settings used to customize the code generated.
 data VisualSettings = VisualSettings
   { visualSettingsHost       :: String
                                 -- ^ Host interface to listen to. Use
@@ -147,7 +147,9 @@ appMainLoop settings conn simData = do
 
   appMainLoop settings conn simData'
 
--- | Obtain the visualization data from a Copilot spec for a number of steps.
+-- * Auxiliary functions
+
+-- | Obtain the trace data from a Copilot spec for a number of steps.
 makeTraceEval :: Int -> Core.Spec -> View.AppData
 makeTraceEval numSteps spec' =
   View.makeTraceEval numSteps spec' (eval Haskell numSteps spec')
