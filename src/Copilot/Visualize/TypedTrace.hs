@@ -2,10 +2,14 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | Read and modify traces of specifications.
+--
+-- In the context of this module, a trace refers only to the values of
+-- externs, since the state of a spec can be reproduced if the values of
+-- externs are known.
 module Copilot.Visualize.TypedTrace
     ( extractTrace
     , updateWithTrace
-    , Trace
+    , Trace(..)
     , UValues(..)
     )
   where
